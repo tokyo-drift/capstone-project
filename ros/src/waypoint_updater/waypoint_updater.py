@@ -38,15 +38,60 @@ class WaypointUpdater(object):
 
         # TODO: Add other member variables you need below
 
+        self.base_waypoints = []  # List of waypoints, as received from /base_waypoints
+        self.next_waypoint = None # Next waypoint in car direction
+
         rospy.spin()
 
     def pose_cb(self, msg):
-        # TODO: Implement
-        pass
+        """
+        - Receive ego car pose
+        - Update next_waypoint
+        - Generate the list of the next LOOKAHEAD_WPS waypoints
+        - (FUTURE) Update velocity for them
+        - Publish them to "/final_waypoints"
+        """
 
-    def waypoints_cb(self, waypoints):
-        # TODO: Implement
-        pass
+        # 1. Receive ego car pose
+        ego_position = msg.pose.position # x,y,z position; use just x and y
+        ego_orientation = msg.pose.orientation # x,y,z,w orientation; use just x and y
+        
+        if not self.base_waypoints:
+            # Nothing to do yet
+            rospy.logwarn("We do not have base_waypoints yet: cannot process pose")
+            return
+
+        # 2. TODO: Find next_waypoint based on ego position & orientation
+        # [pablo] We need to finish this part to complete "Waypoint Updater Node (Partial)"
+        self.next_waypoint = 0; # FIXME!
+
+        # 3. Generate the list of next LOOKAHEAD_WPS waypoints
+        num_base_wp = len(self.base_waypoints)
+        waypoint_idx = [idx % num_base_wp for idx in range(self.next_waypoint,self.next_waypoint+LOOKAHEAD_WPS)]
+
+        final_waypoints = [self.base_waypoints[wp] for wp in waypoint_idx]
+
+        # 4. TODO: Update velocity for them
+        # [pablo] I think this is NOT needed for "Waypoint Updater Node (Partial)". But not sure...
+
+        # 5. Publish waypoints to "/final_waypoints"
+        waypoint_msg = Lane()
+        waypoint_msg.waypoints = final_waypoints
+        self.final_waypoints_pub.publish(waypoint_msg)
+
+
+    def waypoints_cb(self, msg):
+        """
+        Receive and store the whole list of waypoints.
+        """
+        if not self.base_waypoints:
+            waypoints = msg.waypoints
+            rospy.logwarn("Received a total of %d /base_waypoints. Storing them", len(waypoints))
+            self.base_waypoints = waypoints
+        else:
+            # FIXME: [pablo] As CSV file doesn't change, I'm not reloading waypoints anymore.
+            # Not sure if this is a good idea...
+            pass
 
     def traffic_cb(self, msg):
         # TODO: Callback for /traffic_waypoint message. Implement
