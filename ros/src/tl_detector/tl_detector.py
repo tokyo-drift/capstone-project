@@ -9,6 +9,7 @@ from cv_bridge import CvBridge
 from light_classification.tl_classifier import TLClassifier
 import tf
 import cv2
+import math
 from traffic_light_config import config
 
 STATE_COUNT_THRESHOLD = 3
@@ -52,7 +53,7 @@ class TLDetector(object):
         self.pose = msg
 
     def waypoints_cb(self, waypoints):
-        self.waypoints = waypoints
+        self.waypoints = waypoints 
 
     def traffic_cb(self, msg):
         self.lights = msg.lights
@@ -97,9 +98,28 @@ class TLDetector(object):
             int: index of the closest waypoint in self.waypoints
 
         """
-        #TODO implement
-        return 0
+        index = -1
+	#Return if waypoints are empty
+	if self.waypoints is None: 
+	  return index
+	  
+	rospy.loginfo('tl.detector.get_closest_waypoint() searching for position (%s, %s) within %s waypoints', pose.position.x, pose.position.y, self.waypoints.header.seq) 
 
+
+	smallestDistance = 0
+	#Brute force!: TODO: optimze
+	for i in range(0, self.waypoints.header.seq):
+	    curr_wp_pose = self.waypoints.waypoints[i].pose.pose
+	    distance = self.euclidianDistance(pose, curr_wp_pose)
+	    if index == -1 or distance < smallestDistance:
+		index = i
+		smallestDistance = distance
+		print(str(index) + " " + str(smallestDistance))
+		
+        return index
+
+    def euclidianDistance(self, pos1, pos2):
+	return math.sqrt((pos1.position.x - pos2.position.x)**2 + (pos1.position.y - pos2.position.y)**2)
 
     def project_to_image_plane(self, point_in_world):
         """Project point from 3D world coordinates to 2D camera image location
