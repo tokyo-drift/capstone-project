@@ -56,7 +56,9 @@ class DBWNode(object):
         # TODO: Create `TwistController` object
         # self.controller = TwistController(<Arguments you wish to provide>)
 
+
         # TODO: Subscribe to all the topics you need to
+        self.twist_sub = rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_message_callback)
 
         self.loop()
 
@@ -71,7 +73,12 @@ class DBWNode(object):
             #                                                     <dbw status>,
             #                                                     <any other argument you need>)
             # if <dbw is enabled>:
-            #   self.publish(throttle, brake, steer)
+
+            # [deborah] TEST: to see how to maneuever the vehicle
+            # throttle = 100
+            # brake = 0
+            # steer = 0
+            # self.publish(throttle, brake, steer)
             rate.sleep()
 
     def publish(self, throttle, brake, steer):
@@ -92,6 +99,25 @@ class DBWNode(object):
         bcmd.pedal_cmd = brake
         self.brake_pub.publish(bcmd)
 
+    def twist_message_callback(self, message):
+        """
+            Message format:
+            std_msgs/Header header
+              uint32 seq
+              time stamp
+              string frame_id
+            geometry_msgs/Twist twist
+              geometry_msgs/Vector3 linear
+                float64 x
+                float64 y
+                float64 z
+              geometry_msgs/Vector3 angular
+                float64 x
+                float64 y
+                float64 z
+
+        """
+        pass
 
 if __name__ == '__main__':
     DBWNode()
