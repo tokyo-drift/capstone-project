@@ -96,30 +96,29 @@ class TLDetector(object):
 
         Returns:
             int: index of the closest waypoint in self.waypoints
-
         """
         index = -1
-	#Return if waypoints are empty
-	if self.waypoints is None: 
-	  return index
-	  
-	rospy.loginfo('tl.detector.get_closest_waypoint() searching for position (%s, %s) within %s waypoints', pose.position.x, pose.position.y, self.waypoints.header.seq) 
+        #Return if way points are empty
+        if self.waypoints is None: 
+            return index
+  
+        rospy.loginfo('tl.detector.get_closest_waypoint() searching for position (%s, %s) within %s waypoints', pose.position.x, pose.position.y, self.waypoints.header.seq) 
 
-
-	smallestDistance = 0
-	#Brute force!: TODO: optimze
-	for i in range(0, self.waypoints.header.seq):
-	    curr_wp_pose = self.waypoints.waypoints[i].pose.pose
-	    distance = self.euclidianDistance(pose, curr_wp_pose)
-	    if index == -1 or distance < smallestDistance:
-		index = i
-		smallestDistance = distance
-		print(str(index) + " " + str(smallestDistance))
-		
+        smallestDistance = 0
+        #Brute force!: TODO: optimze
+        for i in range(0, self.waypoints.header.seq):
+            curr_wp_pose = self.waypoints.waypoints[i].pose.pose
+            distance = self.euclidianDistance(pose, curr_wp_pose)
+            if index == -1 or distance < smallestDistance:
+                index = i
+                smallestDistance = distance
+                
+        print(str(index) + " " + str(smallestDistance))
+        
         return index
 
     def euclidianDistance(self, pos1, pos2):
-	return math.sqrt((pos1.position.x - pos2.position.x)**2 + (pos1.position.y - pos2.position.y)**2)
+        return math.sqrt((pos1.position.x - pos2.position.x)**2 + (pos1.position.y - pos2.position.y)**2)
 
     def project_to_image_plane(self, point_in_world):
         """Project point from 3D world coordinates to 2D camera image location
@@ -201,6 +200,7 @@ class TLDetector(object):
         if light:
             state = self.get_light_state(light)
             return light_wp, state
+        
         self.waypoints = None
         return -1, TrafficLight.UNKNOWN
 
