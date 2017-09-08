@@ -57,6 +57,8 @@ class DBWNode(object):
         # self.controller = TwistController(<Arguments you wish to provide>)
 
         self.is_dbw_enabled = False
+        self.current_velocity = None
+        self.proposed_velocity = None
 
         # TODO: Subscribe to all the topics you need to
         self.twist_sub = rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_message_callback)
@@ -120,7 +122,7 @@ class DBWNode(object):
                 float64 z
 
         """
-        pass
+        self.proposed_velocity = message
 
     def current_velocity_callback(self, message):
         """
@@ -140,7 +142,7 @@ class DBWNode(object):
                 float64 z
 
         """
-        pass
+        self.current_velocity = message
         
 
     def dbw_enabled_callback(self, message):
