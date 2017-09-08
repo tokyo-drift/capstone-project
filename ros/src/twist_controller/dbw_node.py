@@ -56,9 +56,12 @@ class DBWNode(object):
         # TODO: Create `TwistController` object
         # self.controller = TwistController(<Arguments you wish to provide>)
 
+        self.is_dbw_enabled = False
 
         # TODO: Subscribe to all the topics you need to
         self.twist_sub = rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_message_callback)
+        self.velocity_sub = rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_callback)
+        self.dbw_sub = rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_callback)
 
         self.loop()
 
@@ -118,6 +121,34 @@ class DBWNode(object):
 
         """
         pass
+
+    def current_velocity_callback(self, message):
+        """
+            Message format:
+            std_msgs/Header header
+              uint32 seq
+              time stamp
+              string frame_id
+            geometry_msgs/Twist twist
+              geometry_msgs/Vector3 linear
+                float64 x
+                float64 y
+                float64 z
+              geometry_msgs/Vector3 angular
+                float64 x
+                float64 y
+                float64 z
+
+        """
+        pass
+        
+
+    def dbw_enabled_callback(self, message):
+        """
+            message: bool
+        """
+        rospy.loginfo("DBW_ENABLED %s" % message)
+        self.is_dbw_enabled = message
 
 if __name__ == '__main__':
     DBWNode()
