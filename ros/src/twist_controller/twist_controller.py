@@ -22,6 +22,18 @@ class Controller(object):
     
 
     def control(self, proposed_linear_velocity, proposed_angular_velocity, current_linear_velocity):
-        
+        linear_velocity_error = proposed_linear_velocity - current_linear_velocity
 
-        return 1., 0., 0.
+        # TODO: what exactly is sample time?
+        sample_time = 0.05
+
+        velocity_correction = self.linear_pid.step(linear_velocity_error, sample_time)
+
+        throttle = velocity_correction
+
+        if(throttle < 0):
+            brake = 1000 * abs(throttle)
+            throttle = 0.
+
+        # TODO: Implement angular velocity for steering
+        return throttle, brake, 0.
