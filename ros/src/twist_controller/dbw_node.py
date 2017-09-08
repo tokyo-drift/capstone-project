@@ -68,7 +68,7 @@ class DBWNode(object):
                                          BrakeCmd, queue_size=1)
 
         # Create `TwistController` object
-        self.controller = TwistController(**config)
+        self.controller = Controller(**config)
 
         self.is_dbw_enabled = False
         self.current_velocity = None
