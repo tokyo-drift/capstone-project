@@ -102,7 +102,7 @@ class TLDetector(object):
         if self.waypoints is None: 
             return index
   
-        rospy.loginfo('tl.detector.get_closest_waypoint() searching for position (%s, %s) within %s waypoints', pose.position.x, pose.position.y, self.waypoints.header.seq) 
+        #rospy.loginfo('tl.detector.get_closest_waypoint() searching for position (%s, %s) within %s waypoints', pose.position.x, pose.position.y, self.waypoints.header.seq) 
 
         smallestDistance = 0
         #Brute force!: TODO: optimze
