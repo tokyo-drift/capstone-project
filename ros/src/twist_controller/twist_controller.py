@@ -29,6 +29,7 @@ class Controller(object):
 
         velocity_correction = self.linear_pid.step(linear_velocity_error, sample_time)
 
+        brake = 0
         throttle = velocity_correction
 
         if(throttle < 0):
