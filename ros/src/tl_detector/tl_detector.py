@@ -41,7 +41,8 @@ class TLDetector(object):
 
         self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
 
-        self.bridge = CvBridge()
+        self.bridge = CvBridge()        
+        
         self.light_classifier = TLClassifier()
         self.listener = tf.TransformListener()
 
@@ -69,9 +70,18 @@ class TLDetector(object):
             msg (Image): image from car-mounted camera
 
         """
+        
         self.has_image = True
         self.camera_image = msg
+        self.camera_image.encoding = "rgb8"
         light_wp, state = self.process_traffic_lights()
+
+        #Show car image
+        showimage = False        
+        if showimage:
+            cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+            cv2.imshow('image', cv_image)
+            cv2.waitKey(1)
 
         '''
         Publish upcoming red lights at camera frequency.
@@ -117,7 +127,7 @@ class TLDetector(object):
                 index = i
                 smallestDistance = distance
                 
-        rospy.logdebug('tl.detector.get_closest_waypoint() found at: ' + str(index) + " " + str(smallestDistance))
+        #rospy.loginfo('tl.detector.get_closest_waypoint() found at: ' + str(index) + " " + str(smallestDistance))
         
         return index
 
