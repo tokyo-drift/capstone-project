@@ -95,13 +95,8 @@ class DBWNode(object):
                 throttle, brake, steering = self.controller.control(target_linear_velocity,
                                                                     target_angular_velocity,
                                                                     current_linear_velocity)
-                # if <dbw is enabled>:
-
-                # [deborah] TEST: to see how to maneuever the vehicle
-                # throttle = 100
-                # brake = 0
-                # steer = 0
-                self.publish(throttle, brake, steering)
+                if self.is_dbw_enabled:
+                    self.publish(throttle, brake, steering)
             rate.sleep()
 
     def publish(self, throttle, brake, steer):
