@@ -123,7 +123,7 @@ class WaypointUpdater(object):
         """
         if not self.base_waypoints:
             waypoints = msg.waypoints
-            rospy.loginfo("Received a total of %d /base_waypoints. Storing them", len(waypoints))
+            #rospy.loginfo("Received a total of %d /base_waypoints. Storing them", len(waypoints))
             self.base_waypoints = waypoints
         else:
             # FIXME: [pablo] As CSV file doesn't change, I'm not reloading waypoints anymore.

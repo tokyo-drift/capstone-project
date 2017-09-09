@@ -11,7 +11,6 @@ import tf
 import cv2
 import yaml
 import math
-from traffic_light_config import config
 
 STATE_COUNT_THRESHOLD = 3
 
@@ -106,7 +105,8 @@ class TLDetector(object):
         if self.waypoints is None: 
             return index
   
-        rospy.loginfo('tl.detector.get_closest_waypoint() searching for position (%s, %s) within %s waypoints', pose.position.x, pose.position.y, self.waypoints.header.seq) 
+
+        #rospy.loginfo('tl.detector.get_closest_waypoint() searching for position (%s, %s) within %s waypoints', pose.position.x, pose.position.y, self.waypoints.header.seq) 
 
         smallestDistance = 0
         #Brute force!: TODO: optimze
@@ -117,7 +117,7 @@ class TLDetector(object):
                 index = i
                 smallestDistance = distance
                 
-        print(str(index) + " " + str(smallestDistance))
+        rospy.logdebug('tl.detector.get_closest_waypoint() found at: ' + str(index) + " " + str(smallestDistance))
         
         return index
 

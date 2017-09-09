@@ -1,4 +1,5 @@
 from pid import PID
+from yaw_controller import YawController
 
 GAS_DENSITY = 2.858
 ONE_MPH = 0.44704
@@ -17,9 +18,10 @@ class Controller(object):
         steer_ratio = kwargs['steer_ratio']
         max_lat_accel = kwargs['max_lat_accel']
         max_steer_angle = kwargs['max_steer_angle']
+        min_speed = 0 # TODO: What is a good value for min speed?
 
         self.linear_pid = PID(0.12, 0.0005, 0.04, -accel_limit, accel_limit)
-    
+        self.yaw_controller = YawController(wheel_base, steer_ratio, min_speed, max_lat_accel, max_steer_angle)
 
     def control(self, proposed_linear_velocity, proposed_angular_velocity, current_linear_velocity):
         linear_velocity_error = proposed_linear_velocity - current_linear_velocity
@@ -36,5 +38,6 @@ class Controller(object):
             brake = 1000 * abs(throttle)
             throttle = 0.
 
-        # TODO: Implement angular velocity for steering
-        return throttle, brake, 0.
+        steering = self.yaw_controller.get_steering(proposed_linear_velocity, proposed_angular_velocity, current_linear_velocity)
+
+        return throttle, brake, steering
