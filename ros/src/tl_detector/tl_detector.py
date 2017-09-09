@@ -57,8 +57,8 @@ class TLDetector(object):
         self.pose = msg
 
     def waypoints_cb(self, waypoints):
-        self.waypoints = waypoints
-
+        self.waypoints = waypoints.waypoints
+        
     def traffic_cb(self, msg):
         self.lights = msg.lights
 
@@ -116,12 +116,12 @@ class TLDetector(object):
             return index
   
 
-        #rospy.loginfo('tl.detector.get_closest_waypoint() searching for position (%s, %s) within %s waypoints', pose.position.x, pose.position.y, self.waypoints.header.seq) 
+        #rospy.loginfo('tl.detector.get_closest_waypoint() searching for position (%s, %s) within %s waypoints', pose.position.x, pose.position.y, len(self.waypoints)) 
 
         smallestDistance = 0
         #Brute force!: TODO: optimze
-        for i in range(0, self.waypoints.header.seq):
-            curr_wp_pose = self.waypoints.waypoints[i].pose.pose
+        for i in range(0, len(self.waypoints)):
+            curr_wp_pose = self.waypoints[i].pose.pose
             distance = self.euclidianDistance(pose, curr_wp_pose)
             if index == -1 or distance < smallestDistance:
                 index = i
