@@ -25,12 +25,12 @@ This is the project repo for the final project of the Udacity Self-Driving Car N
 
 1. Clone the project repository
 ```bash
-git clone https://github.com/udacity/carnd_capstone.git
+git clone https://github.com/tokyo-drift/capstone-project.git
 ```
 
 2. Install python dependencies
 ```bash
-cd carnd_capstone
+cd capstone-project
 pip install -r requirements.txt
 ```
 3. Make and run styx
