@@ -28,20 +28,59 @@ class WaypointUpdater(object):
     def __init__(self):
         rospy.init_node('waypoint_updater')
 
+        # Add Subscribers and Publisher
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-
         # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
-
-
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
 
-        # TODO: Add other member variables you need below
-
+        # Add State variables
         self.base_waypoints = []  # List of waypoints, as received from /base_waypoints
         self.next_waypoint = None # Next waypoint in car direction
+        self.ego_pose = None # Car pose
 
         rospy.spin()
+
+    def _update_next_waypoint(self):
+        """
+        Update next_waypoint based on base_waypoints and ego_pose
+        """
+        if not self.base_waypoints or not self.ego_pose:
+            return
+
+        # Get ego car variables
+        ego_x = self.ego_pose.position.x
+        ego_y = self.ego_pose.position.y
+        ego_theta = math.atan2(self.ego_pose.orientation.y, self.ego_pose.orientation.x)
+
+        # TODO: verify that, if we already have a waypoint, it is valid
+
+        # If we do have a next_waypoint, we use it; otherwise we find the closest
+        if not self.next_waypoint:
+            wp = None
+            dist = 1000000 # Long number
+            for idx in range(len(self.base_waypoints)):
+                wp_x = self.base_waypoints[idx].pose.pose.position.x
+                wp_y = self.base_waypoints[idx].pose.pose.position.y
+                wp_d = math.sqrt((ego_x - wp_x)**2 + (ego_y - wp_y)**2)
+                if wp_d < dist:
+                    dist = wp_d
+                    wp = idx
+            self.next_waypoint = wp
+
+        # Now we check the orientation, in case next_waypoint is behind us
+        wp_x = self.base_waypoints[self.next_waypoint].pose.pose.position.x
+        wp_y = self.base_waypoints[self.next_waypoint].pose.pose.position.y
+
+        heading = math.atan2(wp_y - ego_y, wp_x - ego_x)
+        angle = abs(ego_theta - heading)
+
+        # It the angle between heading (the relative angle of waypoint from the car)
+        # and theta (car current pose) is more than 90 deg, then the point is backwards
+        # and we pick the next one. This is valid even when we started from an
+        # existing next_waypoint (to find out whether ego car has gone beyond)
+        if angle > math.pi/4:
+            self.next_waypoint += 1
 
     def pose_cb(self, msg):
         """
@@ -52,18 +91,16 @@ class WaypointUpdater(object):
         - Publish them to "/final_waypoints"
         """
 
-        # 1. Receive ego car pose
-        ego_position = msg.pose.position # x,y,z position; use just x and y
-        ego_orientation = msg.pose.orientation # x,y,z,w orientation; use just x and y
-        
+        # 1. Receive and store ego car pose
+        self.ego_pose = msg.pose
+
         if not self.base_waypoints:
             # Nothing to do yet
             rospy.logwarn("We do not have base_waypoints yet: cannot process pose")
             return
 
-        # 2. TODO: Find next_waypoint based on ego position & orientation
-        # [pablo] We need to finish this part to complete "Waypoint Updater Node (Partial)"
-        self.next_waypoint = 0; # FIXME!
+        # 2. Find next_waypoint based on ego position & orientation
+        self._update_next_waypoint()
 
         # 3. Generate the list of next LOOKAHEAD_WPS waypoints
         num_base_wp = len(self.base_waypoints)
