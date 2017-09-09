@@ -74,7 +74,7 @@ class DBWNode(object):
         self.current_velocity = None
         self.proposed_velocity = None
 
-        # TODO: Subscribe to all the topics you need to
+        # Subscribe to all the topics you need to
         self.twist_sub = rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_message_callback)
         self.velocity_sub = rospy.Subscriber('/current_velocity', TwistStamped, self.current_velocity_callback)
         self.dbw_sub = rospy.Subscriber('/vehicle/dbw_enabled', Bool, self.dbw_enabled_callback)
@@ -89,8 +89,8 @@ class DBWNode(object):
             if (self.current_velocity is not None) and (self.proposed_velocity is not None):
                 current_linear_velocity = self.current_velocity.twist.linear.x
                 target_linear_velocity = self.proposed_velocity.twist.linear.x
-                # TODO: which component to use for the proposed angular velocity?
-                target_angular_velocity = 0
+                
+                target_angular_velocity = self.proposed_velocity.twist.angular.z
 
                 throttle, brake, steering = self.controller.control(target_linear_velocity,
                                                                     target_angular_velocity,
@@ -167,7 +167,7 @@ class DBWNode(object):
         """
             message: bool
         """
-        rospy.loginfo("DBW_ENABLED %s" % message)
+        #rospy.loginfo("DBW_ENABLED %s" % message)
         self.is_dbw_enabled = message
 
 if __name__ == '__main__':
