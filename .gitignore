@@ -6,3 +6,5 @@ devel
 profile.tmp
 
 *.swp
+/ros/src/styx/*.bak
+/ros/src/tl_detector/*.bak
