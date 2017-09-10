@@ -38,8 +38,10 @@ clean twist value to the DBW node.
 LOOKAHEAD_WPS = 200       # Number of waypoints we will publish
 PUBLISH_RATE = 1          # Publishing rate (Hz)
 MAX_LOCAL_DISTANCE = 20.0 # Max waypoint distance we admit for a local minimum (m)
+PUBLISH_ON_LIGHT_CHANGE = True # Force publishing if next traffic light changes
 
-debugging = True # Set to False for release (not too verbose, but it saves some computation power)
+stop_on_red = True # Enable/disable stopping on red lights
+debugging = True   # Set to False for release (not too verbose, but it saves some computation power)
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -128,12 +130,31 @@ class WaypointUpdater(object):
         self.next_waypoint = wp
         return True
 
+    def decelerate(self, waypoints, stop_index):
+        """
+        Decelerate a list of wayponts so that they stop on stop_index
+        """
+        if stop_index <= 0:
+            rospy.logwarn("Not enough space for a safe stop.")
+            return
+        dist = self.distance(wayponts, 0, stop_index)
+        start_v = self.get_waypoint_velocity(wayponts[0])
+        end_v = 0
+        step = dist / stop_index
+        if logging:
+            rospy.loginfo("Decelerate %.2f->%.2f in %.1f m (%d wps at %.1f m/wp)",
+                          start_v, end_v, dist, stop_index, step)
+        # TODO: - Generate a smooth velocity trayectory from 0 to stop_index
+        #           - Acceleration should not exceed 10 m/s^2
+        #           - Jerk should not exceed 10 m/s^3
+        #       - Set waypoint velocity to 0.0 from stop_index onwards
+        #       - If it is not possible to stop safely, just keep going
 
     def update_and_publish(self):
         """
         - Update next_waypoint based on current_pose and base_waypoints
         - Generate the list of the next LOOKAHEAD_WPS waypoints
-        - (FUTURE) Update velocity for them
+        - Update velocity for them
         - Publish them to "/final_waypoints"
         """
         # 1. Find next_waypoint based on ego position & orientation
@@ -145,9 +166,13 @@ class WaypointUpdater(object):
             final_waypoints = [self.base_waypoints[wp] for wp in waypoint_idx]
 
             # 3. If there is a red light ahead, update velocity for them
-            if self.red_light_waypoint is not None:
-                # TODO Update velocity
-                pass
+            if stop_on_red:
+                try:
+                    red_idx = waypoint_idx.index(self.red_light_waypoint)
+                    self.decelerate(waypoints, red_idx)
+                except ValueError:
+                    # No red light available: self.red_light_waypoint is None or not in final_waypoints
+                    pass
 
             # 4. Publish waypoints to "/final_waypoints"
             self.publish_msg(final_waypoints)
@@ -194,7 +219,11 @@ class WaypointUpdater(object):
         Receive and store the waypoint index for the next red traffic light.
         If the index is <0, then there is no red traffic light ahead
         """
+        prev_red_light_waypoint = self.red_light_waypoint
         self.red_light_waypoint = msg.data if msg.data >= 0 else None
+        # rospy.loginfo("TrafficLight received: %d -> %s", msg.data, str(self.red_light_waypoint))
+        if PUBLISH_ON_LIGHT_CHANGE and prev_red_light_waypoint != self.red_light_waypoint:
+            self.update_and_publish() # Refresh if next traffic light has changed
 
     def obstacle_cb(self, msg):
         # Obstacle handling is not needed in this version of the project. Nothing to do here.
