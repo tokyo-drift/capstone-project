@@ -12,8 +12,10 @@ import cv2
 import yaml
 import math
 import sys
+from mercurial.subrepo import state
 
 STATE_COUNT_THRESHOLD = 3
+USE_CLASSIFIER = False
 
 class TLDetector(object):
     def __init__(self):
@@ -69,7 +71,6 @@ class TLDetector(object):
 
         Args:
             msg (Image): image from car-mounted camera
-
         """
         
         self.has_image = True
@@ -217,8 +218,7 @@ class TLDetector(object):
             int: index of waypoint closes to the upcoming traffic light (-1 if none exists)
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
 
-        """
-        
+        """       
         if(self.pose):
             #find the closest visible traffic light (if one exists)
             car_position = self.get_closest_waypoint(self.pose.position.x, self.pose.position.y)
@@ -228,10 +228,18 @@ class TLDetector(object):
                 light_pos, light_waypoint = self.get_nearest_traffic_light(car_position)                
 
                 if light_pos:
-                    rospy.loginfo("Next traffic light ahead from waypoint " + str(car_position) + 
-                                  " is at position " + str(light_pos) + " at waypoint " + str(light_waypoint))    
-                    state = self.get_light_state(light_pos[0], light_pos[1])
-                    self.waypoints = None #TODO: Is this really needed?
+                    #rospy.loginfo("Next traffic light ahead from waypoint " + str(car_position) + 
+                    #              " is at position " + str(light_pos) + " at waypoint " + str(light_waypoint))    
+                    state = TrafficLight.UNKNOWN
+                    if USE_CLASSIFIER:
+                        state = self.get_light_state(light_pos[0], light_pos[1])
+                    else:
+                        for light in self.lights:                            
+                            ''' If position of the light from the yaml file and one roperted via 
+                                /vehicle/traffic_lights differs only within 30 m consider them as same '''
+                            if self.euclidianDistance(light.pose.pose.position.x, light.pose.pose.position.y, light_pos[0], light_pos[1]) < 30:
+                                state = light.state
+                      
                     return light_waypoint, state
         
         self.waypoints = None #TODO: Is this really needed?
