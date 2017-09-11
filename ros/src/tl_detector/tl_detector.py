@@ -12,12 +12,14 @@ import cv2
 import yaml
 import math
 import sys
+import numpy as np
 from mercurial.subrepo import state
 
 STATE_COUNT_THRESHOLD = 3
-USE_CLASSIFIER = False
+USE_CLASSIFIER = True
 
 class TLDetector(object):
+###########################################################################################################################
     def __init__(self):
         rospy.init_node('tl_detector')
 
@@ -55,16 +57,16 @@ class TLDetector(object):
         self.state_count = 0
 
         rospy.spin()
-
+###########################################################################################################################
     def pose_cb(self, msg):
         self.pose = msg.pose
-
+###########################################################################################################################
     def waypoints_cb(self, waypoints):
         self.waypoints = waypoints.waypoints
-        
+###########################################################################################################################        
     def traffic_cb(self, msg):
         self.lights = msg.lights
-
+###########################################################################################################################
     def image_cb(self, msg):
         """Identifies red lights in the incoming camera image and publishes the index
             of the waypoint closest to the red light to /traffic_waypoint
@@ -96,7 +98,8 @@ class TLDetector(object):
         else:
             self.upcoming_red_light_pub.publish(Int32(self.last_wp))
         self.state_count += 1
-
+        
+###########################################################################################################################
     def get_closest_waypoint(self, position_x, position_y):
         """Identifies the closest path waypoint to the given position
             https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
@@ -125,10 +128,12 @@ class TLDetector(object):
         #rospy.loginfo('tl.detector.get_closest_waypoint() found at: ' + str(index) + " " + str(smallestDistance))
         
         return index
-
+    
+###########################################################################################################################
     def euclidianDistance(self, x1, y1, x2, y2):
         return math.sqrt((x1 -x2)**2 + (y1 - y2)**2)
-
+    
+###########################################################################################################################
     def project_to_image_plane(self, point_in_world_x, point_in_world_y):
         """Project point from 3D world coordinates to 2D camera image location
 
@@ -147,7 +152,8 @@ class TLDetector(object):
         image_height = self.config['camera_info']['image_height']
 
         # get transform between pose of camera and world frame
-        trans = None
+        trans_vec = None
+        rot_vec = None
         try:
             now = rospy.Time.now()
             self.listener.waitForTransform("/base_link",
@@ -158,13 +164,60 @@ class TLDetector(object):
         except (tf.Exception, tf.LookupException, tf.ConnectivityException):
             rospy.logerr("Failed to find camera to map transform")
 
-        #TODO Use tranform and rotation to calculate 2D position of light in image
+        #Use tranform and rotation to calculate 2D position of light in image
+        world_point = np.array([[point_in_world_x, point_in_world_y, 0.0]])
+        camera_mat = np.matrix([[fx, 0,  image_width/2],
+                               [0, fy, image_height/2],
+                               [0,  0,            1]])
+        distCoeff = None
 
-        x = 0
-        y = 0
-
-        return (x, y)
-
+        rot_vec = self.QtoR(rot) # 4x1 -> quaternion to rotation matrix
+        trans_vec = np.array(trans)
+        ret, _ = cv2.projectPoints(world_point, rot_vec, trans_vec, camera_mat, distCoeff)
+        #print(ret)
+        #TODO: Unpack values
+        
+        return (0, 0)
+    
+###########################################################################################################################    
+    def normQ(self, q):
+        '''Calculates the normalized Quaternion
+        a is the real part
+        b, c, d are the complex elements'''
+        # Source: Buchholz, J. J. (2013). Vorlesungsmanuskript Regelungstechnik und Flugregler.
+        # GRIN Verlag. Retrieved from http://www.grin.com/de/e-book/82818/regelungstechnik-und-flugregler
+        a, b, c, d = q
+     
+        # Betrag
+        Z = np.sqrt(a**2+b**2+c**2+d**2)
+     
+        return np.array([a/Z,b/Z,c/Z,d/Z])
+    
+###########################################################################################################################
+    def QtoR(self, q):
+        '''Calculates the Rotation Matrix from Quaternion
+        a is the real part
+        b, c, d are the complex elements'''
+        # Source: Buchholz, J. J. (2013). Vorlesungsmanuskript Regelungstechnik und Flugregler.
+        # GRIN Verlag. Retrieved from http://www.grin.com/de/e-book/82818/regelungstechnik-und-flugregler
+        q = self.normQ(q)
+     
+        a, b, c, d = q
+     
+        R11 = (a**2+b**2-c**2-d**2)
+        R12 = 2.0*(b*c-a*d)
+        R13 = 2.0*(b*d+a*c)
+     
+        R21 = 2.0*(b*c+a*d)
+        R22 = a**2-b**2+c**2-d**2
+        R23 = 2.0*(c*d-a*b)
+     
+        R31 = 2.0*(b*d-a*c)
+        R32 = 2.0*(c*d+a*b)
+        R33 = a**2-b**2-c**2+d**2
+     
+        return np.matrix([[R11, R12, R13],[R21, R22, R23],[R31, R32, R33]])
+###########################################################################################################################
     def get_light_state(self, light_pos_x, light_pos_y):
         """Determines the current color of the traffic light
 
@@ -194,7 +247,7 @@ class TLDetector(object):
 
         #Get classification
         return self.light_classifier.get_classification(cv_image)
-
+###########################################################################################################################
     def get_nearest_traffic_light(self, waypoint_start_index):
         traffic_light = None
         traffic_light_positions = self.config['light_positions']
@@ -209,7 +262,7 @@ class TLDetector(object):
                 traffic_light = traffic_light_positions[i]
         
         return traffic_light, last_index
-        
+###########################################################################################################################        
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
             location and color
@@ -229,7 +282,7 @@ class TLDetector(object):
 
                 if light_pos:
                     #rospy.loginfo("Next traffic light ahead from waypoint " + str(car_position) + 
-                    #              " is at position " + str(light_pos) + " at waypoint " + str(light_waypoint))    
+                    #              " is at position " + str(light_pos) + " at waypoint " + str(light_waypoint)) 
                     state = TrafficLight.UNKNOWN
                     if USE_CLASSIFIER:
                         state = self.get_light_state(light_pos[0], light_pos[1])
@@ -244,9 +297,10 @@ class TLDetector(object):
         
         self.waypoints = None #TODO: Is this really needed?
         return -1, TrafficLight.UNKNOWN
-
+###########################################################################################################################
 if __name__ == '__main__':
     try:
         TLDetector()
     except rospy.ROSInterruptException:
         rospy.logerr('Could not start traffic node.')
+###########################################################################################################################
