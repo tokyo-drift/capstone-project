@@ -34,7 +34,7 @@ def get_cross_track_error(final_waypoints, current_pose):
     shifted_matrix = waypoints_matrix - np.array([origin.x, origin.y])
 
     # Derive an angle by which to rotate the points
-    offset = 10
+    offset = 11
     angle = np.arctan2(shifted_matrix[offset, 1], shifted_matrix[offset, 0])
     rotation_matrix = np.array([
             [np.cos(angle), -np.sin(angle)],
@@ -54,6 +54,6 @@ def get_cross_track_error(final_waypoints, current_pose):
     expected_y_value = np.polyval(coefficients, rotated_pose[0])
     actual_y_value = rotated_pose[1]
 
-    return -expected_y_value - actual_y_value
+    return expected_y_value - actual_y_value
 
 
