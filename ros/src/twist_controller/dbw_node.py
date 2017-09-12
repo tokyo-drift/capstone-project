@@ -78,6 +78,8 @@ class DBWNode(object):
         self.proposed_velocity = None
         self.final_waypoints = None
         self.current_pose = None
+        self.previous_loop_time = rospy.get_rostime()
+
 
         # Subscribe to all the topics you need to
         self.twist_sub = rospy.Subscriber('/twist_cmd', TwistStamped, self.twist_message_callback, queue_size=1)
@@ -94,6 +96,11 @@ class DBWNode(object):
             # Get predicted throttle, brake, and steering using `twist_controller`
             # You should only publish the control commands if dbw is enabled
             if (self.current_velocity is not None) and (self.proposed_velocity is not None) and (self.final_waypoints is not None):
+                current_time = rospy.get_rostime()
+                ros_duration = current_time - self.previous_loop_time
+                duration_in_seconds = ros_duration.secs + (1e-9 * ros_duration.nsecs)
+                self.previous_loop_time = current_time
+
                 current_linear_velocity = self.current_velocity.twist.linear.x
                 target_linear_velocity = self.proposed_velocity.twist.linear.x
                 
@@ -102,7 +109,7 @@ class DBWNode(object):
 
                 throttle, brake, steering = self.controller.control(target_linear_velocity,
                                                                     target_angular_velocity,
-                                                                    current_linear_velocity, cross_track_error)
+                                                                    current_linear_velocity, cross_track_error, duration_in_seconds)
                 if self.is_dbw_enabled:
                     self.publish(throttle, brake, steering)
             rate.sleep()

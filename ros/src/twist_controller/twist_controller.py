@@ -23,15 +23,15 @@ class Controller(object):
 
         self.linear_pid = PID(kp=0.2, ki=0.005, kd=0.1, mn=decel_limit, mx=0.5 * accel_limit)
         self.yaw_controller = YawController(wheel_base, steer_ratio, min_speed, max_lat_accel, max_steer_angle)
-        self.steering_pid = PID(kp=1.0, ki=0.001, kd=0.5, mn=-max_steer_angle, mx=max_steer_angle)
+        self.steering_pid = PID(kp=0.6, ki=0.001, kd=1.0, mn=-max_steer_angle, mx=max_steer_angle)
 
-    def control(self, proposed_linear_velocity, proposed_angular_velocity, current_linear_velocity, cross_track_error):
+    def control(self, proposed_linear_velocity, proposed_angular_velocity, current_linear_velocity, cross_track_error, duration_in_seconds):
         linear_velocity_error = proposed_linear_velocity - current_linear_velocity
 
         # TODO: what exactly is sample time?
         sample_time = 0.05
 
-        velocity_correction = self.linear_pid.step(linear_velocity_error, sample_time)
+        velocity_correction = self.linear_pid.step(linear_velocity_error, duration_in_seconds)
 
         brake = 0
         throttle = velocity_correction
@@ -41,6 +41,6 @@ class Controller(object):
             throttle = 0
 
         #steering = self.yaw_controller.get_steering(proposed_linear_velocity, proposed_angular_velocity, current_linear_velocity)
-        steering = self.steering_pid.step(cross_track_error, sample_time)
+        steering = self.steering_pid.step(cross_track_error, duration_in_seconds)
 
         return throttle, brake, steering
