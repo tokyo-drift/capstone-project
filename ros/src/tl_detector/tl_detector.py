@@ -16,7 +16,8 @@ import numpy as np
 from mercurial.subrepo import state
 
 STATE_COUNT_THRESHOLD = 3
-USE_CLASSIFIER = True
+USE_CLASSIFIER = False
+DISPLAY_CAMERA = False
 
 class TLDetector(object):
 ###########################################################################################################################
@@ -134,7 +135,7 @@ class TLDetector(object):
         return math.sqrt((x1 -x2)**2 + (y1 - y2)**2)
     
 ###########################################################################################################################
-    def project_to_image_plane(self, point_in_world_x, point_in_world_y):
+    def project_to_image_plane(self, point_in_world_x, point_in_world_y, point_in_world_z):
         """Project point from 3D world coordinates to 2D camera image location
 
         Args:
@@ -145,15 +146,14 @@ class TLDetector(object):
             y (int): y coordinate of target point in image
 
         """
-
         fx = self.config['camera_info']['focal_length_x']
         fy = self.config['camera_info']['focal_length_y']
         image_width = self.config['camera_info']['image_width']
         image_height = self.config['camera_info']['image_height']
-
+        
         # get transform between pose of camera and world frame
-        trans_vec = None
-        rot_vec = None
+        trans = None
+        rot = None
         try:
             now = rospy.Time.now()
             self.listener.waitForTransform("/base_link",
@@ -164,61 +164,66 @@ class TLDetector(object):
         except (tf.Exception, tf.LookupException, tf.ConnectivityException):
             rospy.logerr("Failed to find camera to map transform")
 
+        if trans == None or rot == None:
+            return -1,-1
+        
         #Use tranform and rotation to calculate 2D position of light in image
-        world_point = np.array([[point_in_world_x, point_in_world_y, 0.0]])
+        world_point = np.array([[point_in_world_x, point_in_world_y, point_in_world_z]])
+
         camera_mat = np.matrix([[fx, 0,  image_width/2],
                                [0, fy, image_height/2],
                                [0,  0,            1]])
         distCoeff = None
 
-        rot_vec = self.QtoR(rot) # 4x1 -> quaternion to rotation matrix
-        trans_vec = np.array(trans)
-        ret, _ = cv2.projectPoints(world_point, rot_vec, trans_vec, camera_mat, distCoeff)
-        #print(ret)
-        #TODO: Unpack values
-        
-        return (0, 0)
-    
-###########################################################################################################################    
-    def normQ(self, q):
-        '''Calculates the normalized Quaternion
-        a is the real part
-        b, c, d are the complex elements'''
-        # Source: Buchholz, J. J. (2013). Vorlesungsmanuskript Regelungstechnik und Flugregler.
-        # GRIN Verlag. Retrieved from http://www.grin.com/de/e-book/82818/regelungstechnik-und-flugregler
-        a, b, c, d = q
-     
-        # Betrag
-        Z = np.sqrt(a**2+b**2+c**2+d**2)
-     
-        return np.array([a/Z,b/Z,c/Z,d/Z])
+        rot_vec = self.QuaterniontoRotationMatrix(rot) # 4x1 -> quaternion to rotation matrix at z-axis
+        #print("QtoR: " + str(rot_vec))
+
+        ret, _ = cv2.projectPoints(world_point, rot_vec, np.array(trans), camera_mat, distCoeff)
+
+        #Unpack values and return
+        ret = ret.reshape(2,)   
+        return  int(round(ret[1])), int(round(ret[0]))    
     
 ###########################################################################################################################
-    def QtoR(self, q):
+    def QuaterniontoRotationMatrix(self, q):
         '''Calculates the Rotation Matrix from Quaternion
-        a is the real part
-        b, c, d are the complex elements'''
-        # Source: Buchholz, J. J. (2013). Vorlesungsmanuskript Regelungstechnik und Flugregler.
-        # GRIN Verlag. Retrieved from http://www.grin.com/de/e-book/82818/regelungstechnik-und-flugregler
-        q = self.normQ(q)
+        s is the real part
+        x, y, z  are the complex elements'''
+        #https://www.uni-koblenz.de/~cg/veranst/ws0001/sem/Bartz.pdf Chap. 1.2.6
      
-        a, b, c, d = q
+        x, y, z, s = q
+        
+        #Precalculate repeatedly used values
+        x2 = x**2
+        xy = x*y
+        xz = x*z
+        
+        y2 = y**2
+        yz = y*z 
+        
+        z2 = z**2
+               
+        sz = s*z
+        sy = s*y
+        sx = s*x
+              
+        #Calculate rotation matrix
+        R11 = 1-2.0*(y2 + z2)
+        R12 = 2.0*(xy-sz)
+        R13 = 2.0*(xz+sy)
      
-        R11 = (a**2+b**2-c**2-d**2)
-        R12 = 2.0*(b*c-a*d)
-        R13 = 2.0*(b*d+a*c)
+        R21 = 2.0*(xy+sz)
+        R22 = 1-2.0*(x2+z2)
+        R23 = 2.0*(yz-sx)
      
-        R21 = 2.0*(b*c+a*d)
-        R22 = a**2-b**2+c**2-d**2
-        R23 = 2.0*(c*d-a*b)
-     
-        R31 = 2.0*(b*d-a*c)
-        R32 = 2.0*(c*d+a*b)
-        R33 = a**2-b**2-c**2+d**2
+        R31 = 2.0*(xz-sy)
+        R32 = 2.0*(yz+sx)
+        R33 = 1-2.0*(x2+y2)
      
         return np.matrix([[R11, R12, R13],[R21, R22, R23],[R31, R32, R33]])
+    
 ###########################################################################################################################
-    def get_light_state(self, light_pos_x, light_pos_y):
+    def get_light_state(self, light_pos_x, light_pos_y, light_pos_z):
         """Determines the current color of the traffic light
 
         Args:
@@ -234,13 +239,16 @@ class TLDetector(object):
 
         self.camera_image.encoding = "rgb8"
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
+        
 
-        x, y = self.project_to_image_plane(light_pos_x, light_pos_y)
-
+        x, y = self.project_to_image_plane(light_pos_x, light_pos_y, 0)
+              
         #Show car image
-        showimage = False        
-        if showimage:
-            cv2.imshow('image', cv_image)
+        if DISPLAY_CAMERA:
+            image_tmp = np.copy(cv_image)
+            #Draw a circle
+            cv2.circle(image_tmp, (x,y), 20, (255,0,0), thickness=2 )
+            cv2.imshow('image', image_tmp)
             cv2.waitKey(1)
             
         #TODO use light location to zoom in on traffic light in image
@@ -285,12 +293,13 @@ class TLDetector(object):
                     #              " is at position " + str(light_pos) + " at waypoint " + str(light_waypoint)) 
                     state = TrafficLight.UNKNOWN
                     if USE_CLASSIFIER:
-                        state = self.get_light_state(light_pos[0], light_pos[1])
+                        state = self.get_light_state(light_pos[0], light_pos[1], 0)
                     else:
                         for light in self.lights:                            
                             ''' If position of the light from the yaml file and one roperted via 
                                 /vehicle/traffic_lights differs only within 30 m consider them as same '''
                             if self.euclidianDistance(light.pose.pose.position.x, light.pose.pose.position.y, light_pos[0], light_pos[1]) < 30:
+                                state = self.get_light_state(light.pose.pose.position.x, light.pose.pose.position.y, light.pose.pose.position.z)
                                 state = light.state
                       
                     return light_waypoint, state
