@@ -169,20 +169,21 @@ class TLDetector(object):
             return -1,-1
         
         #Use tranform and rotation to calculate 2D position of light in image
-        world_point = np.array([[point_in_world_x, point_in_world_y, point_in_world_z]])
-
+        
+        point_in_world_z = 1 # Does not work with correct z value
+        world_point = np.array([point_in_world_x, point_in_world_y, point_in_world_z]).reshape(1,3,1)
+        
         camera_mat = np.matrix([[fx, 0,  image_width/2],
                                [0, fy, image_height/2],
                                [0,  0,            1]])
         distCoeff = None
 
-        rot_vec = self.QuaterniontoRotationMatrix(rot) # 4x1 -> quaternion to rotation matrix at z-axis
-        #print("QtoR: " + str(rot_vec))
-
-        ret, _ = cv2.projectPoints(world_point, rot_vec, np.array(trans), camera_mat, distCoeff)
+        rot_vec, _ = cv2.Rodrigues(self.QuaterniontoRotationMatrix(rot)) # 4x1 -> quaternion to rotation matrix at z-axis
+        ret, _ = cv2.projectPoints(world_point, rot_vec, np.array(trans).reshape(3,1), camera_mat, distCoeff)
 
         #Unpack values and return
-        ret = ret.reshape(2,)   
+        ret = ret.reshape(2,) 
+        #For some reason u & v are swapped 
         return  int(round(ret[1])), int(round(ret[0]))    
     
 ###########################################################################################################################
@@ -241,7 +242,7 @@ class TLDetector(object):
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
         
 
-        x, y = self.project_to_image_plane(light_pos_x, light_pos_y, 0)
+        x, y = self.project_to_image_plane(light_pos_x, light_pos_y, light_pos_z)
               
         #Show car image
         if DISPLAY_CAMERA:
@@ -259,6 +260,7 @@ class TLDetector(object):
     def get_nearest_traffic_light(self, waypoint_start_index):
         traffic_light = None
         traffic_light_positions = self.config['light_positions']
+        #traffic_light_positions = self.config['manual_light_positions']
         
         last_index = sys.maxsize
         
@@ -293,7 +295,7 @@ class TLDetector(object):
                     #              " is at position " + str(light_pos) + " at waypoint " + str(light_waypoint)) 
                     state = TrafficLight.UNKNOWN
                     if USE_CLASSIFIER:
-                        state = self.get_light_state(light_pos[0], light_pos[1], 0)
+                        state = self.get_light_state(light_pos[0], light_pos[1], light_pos[2])
                     else:
                         for light in self.lights:                            
                             ''' If position of the light from the yaml file and one roperted via 
