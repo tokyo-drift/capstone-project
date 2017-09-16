@@ -19,6 +19,7 @@ STATE_COUNT_THRESHOLD = 3
 USE_CLASSIFIER = False
 DISPLAY_CAMERA = False
 
+
 class TLDetector(object):
 ###########################################################################################################################
     def __init__(self):
@@ -78,8 +79,8 @@ class TLDetector(object):
         
         self.has_image = True
         self.camera_image = msg
-        self.camera_image.encoding = "rgb8"
 
+        
         light_wp, state = self.process_traffic_lights()
         
         '''
