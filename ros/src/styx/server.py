@@ -11,7 +11,6 @@ from conf import conf
 
 sio = socketio.Server()
 app = Flask(__name__)
-bridge = Bridge(conf)
 #
 # Changed to only send the latest message for each topic, rather
 # than queuing out of date messages. Based on
@@ -30,7 +29,7 @@ def send(topic, data):
     msgs[topic] = data
     #sio.emit(topic, data=json.dumps(data), skip_sid=True)
 
-bridge.register_server(send)
+bridge = Bridge(conf, send)
 
 @sio.on('telemetry')
 def telemetry(sid, data):

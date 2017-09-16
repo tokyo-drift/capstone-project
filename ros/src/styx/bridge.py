@@ -36,12 +36,13 @@ TYPE = {
 
 
 class Bridge(object):
-    def __init__(self, conf):
+    def __init__(self, conf, server):
         rospy.init_node('styx_server')
         self.vel = 0.
         self.yaw = None
         self.angular_vel = 0.
         self.bridge = CvBridge()
+        self.server = server
 
         self.callbacks = {
             '/vehicle/steering_cmd': self.callback_steering,
@@ -55,8 +56,6 @@ class Bridge(object):
         self.publishers = {e.name: rospy.Publisher(e.topic, TYPE[e.type], queue_size=1)
                            for e in conf.publishers}
 
-    def register_server(self, server):
-        self.server = server
 
     def create_light(self, x, y, z, yaw, state):
         light = TrafficLight()
