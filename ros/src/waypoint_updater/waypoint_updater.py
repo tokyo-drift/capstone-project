@@ -38,6 +38,7 @@ clean twist value to the DBW node.
 LOOKAHEAD_WPS = 200       # Number of waypoints we will publish
 PUBLISH_RATE = 1          # Publishing rate (Hz)
 MAX_LOCAL_DISTANCE = 20.0 # Max waypoint distance we admit for a local minimum (m)
+BRAKE_ACCEL = -2.5        # Braking acceleration
 PUBLISH_ON_LIGHT_CHANGE = True # Force publishing if next traffic light changes
 
 stop_on_red = True # Enable/disable stopping on red lights
@@ -56,10 +57,12 @@ class WaypointUpdater(object):
 
         # Add State variables
         self.base_waypoints = []  # List of waypoints, as received from /base_waypoints
+        self.base_wp_orig_v = []  # Original velocities of the waypoints
         self.next_waypoint = None # Next waypoint in car direction
         self.current_pose = None # Car pose
         self.red_light_waypoint = None # Waypoint index of the next red light
         self.msg_seq = 0 # Sequence number of /final_waypoints message
+        self.accel = BRAKE_ACCEL # Braking acceleration
 
         # Launch periodic publishing into /final_waypoints
         rate = rospy.Rate(PUBLISH_RATE)
@@ -130,26 +133,6 @@ class WaypointUpdater(object):
         self.next_waypoint = wp
         return True
 
-    def decelerate(self, waypoints, stop_index):
-        """
-        Decelerate a list of wayponts so that they stop on stop_index
-        """
-        if stop_index <= 0:
-            rospy.logwarn("Not enough space for a safe stop.")
-            return
-        dist = self.distance(wayponts, 0, stop_index)
-        start_v = self.get_waypoint_velocity(wayponts[0])
-        end_v = 0
-        step = dist / stop_index
-        if logging:
-            rospy.loginfo("Decelerate %.2f->%.2f in %.1f m (%d wps at %.1f m/wp)",
-                          start_v, end_v, dist, stop_index, step)
-        # TODO: - Generate a smooth velocity trayectory from 0 to stop_index
-        #           - Acceleration should not exceed 10 m/s^2
-        #           - Jerk should not exceed 10 m/s^3
-        #       - Set waypoint velocity to 0.0 from stop_index onwards
-        #       - If it is not possible to stop safely, just keep going
-
     def update_and_publish(self):
         """
         - Update next_waypoint based on current_pose and base_waypoints
@@ -167,12 +150,17 @@ class WaypointUpdater(object):
 
             # 3. If there is a red light ahead, update velocity for them
             if stop_on_red:
+                # Start from original velocities
+                self.restore_velocities(waypoint_idx)
                 try:
                     red_idx = waypoint_idx.index(self.red_light_waypoint)
-                    self.decelerate(waypoints, red_idx)
+                    self.decelerate(final_waypoints, red_idx)
                 except ValueError:
                     # No red light available: self.red_light_waypoint is None or not in final_waypoints
                     pass
+                if debugging:
+                    v = self.get_waypoint_velocity(final_waypoints, 0)
+                    rospy.loginfo("Target velocity: %.1f", v)
 
             # 4. Publish waypoints to "/final_waypoints"
             self.publish_msg(final_waypoints)
@@ -209,6 +197,7 @@ class WaypointUpdater(object):
             waypoints[idx].pose.header.seq = idx
             waypoints[idx].twist.header.seq = idx
         self.base_waypoints = waypoints
+        self.base_wp_orig_v = [self.get_waypoint_velocity(waypoints, idx) for idx in range(num_wp)]
 
         if debugging:
             dist = self.distance(waypoints, 0, num_wp-1)
@@ -221,16 +210,48 @@ class WaypointUpdater(object):
         """
         prev_red_light_waypoint = self.red_light_waypoint
         self.red_light_waypoint = msg.data if msg.data >= 0 else None
-        # rospy.loginfo("TrafficLight received: %d -> %s", msg.data, str(self.red_light_waypoint))
-        if PUBLISH_ON_LIGHT_CHANGE and prev_red_light_waypoint != self.red_light_waypoint:
-            self.update_and_publish() # Refresh if next traffic light has changed
+        if prev_red_light_waypoint != self.red_light_waypoint:
+            if debugging:
+                rospy.loginfo("TrafficLight changed: %s", str(self.red_light_waypoint))
+            if PUBLISH_ON_LIGHT_CHANGE:
+                self.update_and_publish() # Refresh if next traffic light has changed
 
     def obstacle_cb(self, msg):
         # Obstacle handling is not needed in this version of the project. Nothing to do here.
         pass
 
-    def get_waypoint_velocity(self, waypoint):
-        return waypoint.twist.twist.linear.x
+    def restore_velocities(self, indexes):
+        """
+        Restore original velocities of points
+        """
+        for idx in indexes:
+            self.set_waypoint_velocity(self.base_waypoints, idx, self.base_wp_orig_v[idx])
+
+    def decelerate(self, waypoints, stop_index):
+        """
+        Decelerate a list of wayponts so that they stop on stop_index
+        """
+        if stop_index <= 0:
+            return
+        dist = self.distance(waypoints, 0, stop_index)
+        step = dist / stop_index
+        # Generate waypoint velocity by traversing the waypoint list backwards:
+        #  - Everything beyond stop_index will have velocity = 0
+        #  - Before that, constant (de)cceleration is applied until reaching
+        #    previous waypoint velocity.
+        # We assume constant distance between consecutive waypoints for simplicity
+        v = 0.
+        d = 0
+        for idx in reversed(range(len(waypoints))):
+            if idx < stop_index:
+                d += step
+                v = math.sqrt(2*abs(self.accel)*d)
+            if v < self.get_waypoint_velocity(waypoints, idx):
+                self.set_waypoint_velocity(waypoints, idx, v)
+
+
+    def get_waypoint_velocity(self, waypoints, waypoint):
+        return waypoints[waypoint].twist.twist.linear.x
 
     def set_waypoint_velocity(self, waypoints, waypoint, velocity):
         waypoints[waypoint].twist.twist.linear.x = velocity

@@ -103,7 +103,7 @@ class DBWNode(object):
 
                 current_linear_velocity = self.current_velocity.twist.linear.x
                 target_linear_velocity = self.proposed_velocity.twist.linear.x
-                
+
                 target_angular_velocity = self.proposed_velocity.twist.angular.z
                 cross_track_error = cte_calculator.get_cross_track_error(self.final_waypoints, self.current_pose)
 
@@ -171,14 +171,14 @@ class DBWNode(object):
 
         """
         self.current_velocity = message
-        
+
 
     def dbw_enabled_callback(self, message):
         """
             message: bool
         """
-        #rospy.loginfo("DBW_ENABLED %s" % message)
-        self.is_dbw_enabled = message
+        rospy.logwarn("DBW_ENABLED %s" % message)
+        self.is_dbw_enabled = message.data
 
     def final_waypoints_cb(self, message):
         self.final_waypoints = message.waypoints
