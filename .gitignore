@@ -8,4 +8,4 @@ profile.tmp
 *.swp
 /ros/src/styx/*.bak
 /ros/src/tl_detector/*.bak
-traffic_light_bag_files.zip
+*.bag
