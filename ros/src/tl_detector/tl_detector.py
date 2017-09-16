@@ -302,7 +302,7 @@ class TLDetector(object):
                             ''' If position of the light from the yaml file and one roperted via
                                 /vehicle/traffic_lights differs only within 30 m consider them as same '''
                             if self.euclidianDistance(light.pose.pose.position.x, light.pose.pose.position.y, light_pos[0], light_pos[1]) < 30:
-                                state = self.get_light_state(light.pose.pose.position.x, light.pose.pose.position.y, light.pose.pose.position.z)
+                                #state = self.get_light_state(light.pose.pose.position.x, light.pose.pose.position.y, light.pose.pose.position.z)
                                 state = light.state
 
                     return light_waypoint, state
