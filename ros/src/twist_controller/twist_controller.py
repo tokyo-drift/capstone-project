@@ -34,7 +34,7 @@ class Controller(object):
         throttle = velocity_correction
 
         if(throttle < 0):
-        #    brake = 1000 * abs(throttle)
+            brake = 1000 * abs(throttle)
             throttle = 0
 
         predictive_steering = self.yaw_controller.get_steering(proposed_linear_velocity, proposed_angular_velocity, current_linear_velocity)
