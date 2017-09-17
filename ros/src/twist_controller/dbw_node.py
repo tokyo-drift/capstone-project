@@ -105,7 +105,11 @@ class DBWNode(object):
                 target_linear_velocity = self.proposed_velocity.twist.linear.x
 
                 target_angular_velocity = self.proposed_velocity.twist.angular.z
-                cross_track_error = cte_calculator.get_cross_track_error(self.final_waypoints, self.current_pose)
+                try:
+                    cross_track_error = cte_calculator.get_cross_track_error(self.final_waypoints, self.current_pose)
+                except Exception as e:
+                    rospy.logwarn("Exception '{}', {} final_waypoints".format(e, len(self.final_waypoints)))
+                    continue
 
                 throttle, brake, steering = self.controller.control(target_linear_velocity,
                                                                     target_angular_velocity,
