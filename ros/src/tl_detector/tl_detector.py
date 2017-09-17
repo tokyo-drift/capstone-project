@@ -16,7 +16,7 @@ import numpy as np
 import time
 
 STATE_COUNT_THRESHOLD = 3
-USE_CLASSIFIER = False
+USE_CLASSIFIER = True
 DISPLAY_CAMERA = False
 MEASURE_PERFORMANCE = False
 
@@ -313,7 +313,7 @@ class TLDetector(object):
                     #              " is at position " + str(light_pos) + " at waypoint " + str(light_waypoint))
                     state = TrafficLight.UNKNOWN
                     if USE_CLASSIFIER:
-                        state = self.get_light_state(light_pos[0], light_pos[1], light_pos[2])
+                        state = self.get_light_state(light_pos[0], light_pos[1], light_pos[2] if len(light_pos) >= 3 else 0.)
                     else:
                         for light in self.lights:
                             ''' If position of the light from the yaml file and one roperted via
