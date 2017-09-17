@@ -68,6 +68,9 @@ class TLDetector(object):
 ###########################################################################################################################
     def waypoints_cb(self, waypoints):
         self.waypoints = waypoints.waypoints
+        self.waypoints_array = np.asarray([(w.pose.pose.position.x, w.pose.pose.position.y) for w in waypoints.waypoints])
+        #rospy.loginfo('waypoints {} = {}'.format(self.waypoints_array.shape, self.waypoints_array))
+
 ###########################################################################################################################
     def traffic_cb(self, msg):
         self.lights = msg.lights
@@ -82,7 +85,7 @@ class TLDetector(object):
         """
         if MEASURE_PERFORMANCE:
             startTime = time.time()
-        
+
         self.has_image = True
         self.camera_image = msg
 
@@ -105,7 +108,7 @@ class TLDetector(object):
         else:
             self.upcoming_red_light_pub.publish(Int32(self.last_wp))
         self.state_count += 1
-        
+
         if MEASURE_PERFORMANCE:
             endTime = time.time()
             duration = endTime-startTime
@@ -129,84 +132,15 @@ class TLDetector(object):
         if self.waypoints is None:
             return index
 
-        #rospy.loginfo('tl.detector.get_closest_waypoint() searching for position (%s, %s) within %s waypoints', pose.position.x, pose.position.y, len(self.waypoints))
+        position = np.asarray([position_x, position_y])
+        dist_squared = np.sum((self.waypoints_array - position)**2, axis=1)
+        t = time.time()
+        index = np.argmin(dist_squared)
+        #rospy.loginfo('tl.detector.get_closest_waypoint({}) found at = {}, distance = {}, time = {}'.format(
+        #    position, index, np.sqrt(dist_squared[index]), time.time() - t))
 
-        smallestDistance = 0
-        increasingCounter = 0
-      
-        startIndex, endIndex = self.calculateStartEndIndex(position_x, position_y)
-
-        for i in range(startIndex, endIndex):
-            
-            distance = self.calculateDistanceForIndex(position_x, position_y, i)
-            
-            if index == -1 or distance < smallestDistance:
-                index = i
-                smallestDistance = distance
-                increasingCounter = 0
-            else:
-                increasingCounter += 1
-                
-            if increasingCounter > 10:
-                break
-
-        #rospy.loginfo('tl.detector.get_closest_waypoint() found at: ' + str(index) + " " + str(smallestDistance))
-        
-        if smallestDistance > 1.0:
-            rospy.logwarn('tl.detector.get_closest_waypoint() found at: ' + str(index) + ", distance " + str(smallestDistance)
-                          + " is greater than 1.0m!")
-        
         return index
-###########################################################################################################################
-    def calculateStartEndIndex(self, x, y):
-        numberOfSections = 11
-        numberOfWaypoints = len(self.waypoints)
-        waypointDelta = int(numberOfWaypoints / numberOfSections)
-        distances = []
-        for i in range(0,numberOfSections):
-            distances.append(self.calculateDistanceForIndex(x, y, i*waypointDelta))
-        
-        startIndex = distances.index(min(distances))*waypointDelta 
-        if startIndex > numberOfWaypoints-1:
-            startIndex = numberOfWaypoints-1
-              
-        searchDirection = self.calculateSearchDirection(x, y, startIndex)
-        
-        if searchDirection < 0:
-            endIndex = 0
-        else:
-            endIndex = numberOfWaypoints-1
-        
-        return startIndex, endIndex        
-###########################################################################################################################    
-    def calculateSearchDirection(self, x, y, index ):
-        maxIndex = len(self.waypoints)-1
-        
-        if index == 0:
-            if (self.calculateDistanceForIndex(x, y, index+1) 
-            < self.calculateDistanceForIndex(x, y, maxIndex)):
-                return 1
-            else:
-                return -1
-            
-        if index >= maxIndex:
-            if (self.calculateDistanceForIndex(x, y, 0) 
-            < self.calculateDistanceForIndex(x, y, maxIndex-1)):
-                return 1
-            else:
-                return -1
-        
-        if (self.calculateDistanceForIndex(x, y, index+1) 
-            < self.calculateDistanceForIndex(x, y, index-1)):
-            return 1
-        
-        return -1 
-    
-###########################################################################################################################
-    def calculateDistanceForIndex(self, position_x, position_y, index):            
-        curr_wp_pos = self.waypoints[index].pose.pose.position
-        return self.euclidianDistance(position_x, position_y, curr_wp_pos.x, curr_wp_pos.y)
-        
+
 ###########################################################################################################################
     def euclidianDistance(self, x1, y1, x2, y2):
         return math.sqrt((x1 -x2)**2 + (y1 - y2)**2)
@@ -245,10 +179,10 @@ class TLDetector(object):
             return -1,-1
 
         #Use tranform and rotation to calculate 2D position of light in image
-        
+
         point_in_world_z = 1 # Does not work with correct z value
         world_point = np.array([point_in_world_x, point_in_world_y, point_in_world_z]).reshape(1,3,1)
-        
+
         camera_mat = np.matrix([[fx, 0,  image_width/2],
                                [0, fy, image_height/2],
                                [0,  0,            1]])
@@ -258,9 +192,9 @@ class TLDetector(object):
         ret, _ = cv2.projectPoints(world_point, rot_vec, np.array(trans).reshape(3,1), camera_mat, distCoeff)
 
         #Unpack values and return
-        ret = ret.reshape(2,) 
-        #For some reason u & v are swapped 
-        return  int(round(ret[1])), int(round(ret[0]))    
+        ret = ret.reshape(2,)
+        #For some reason u & v are swapped
+        return  int(round(ret[1])), int(round(ret[0]))
 
 ###########################################################################################################################
     def QuaterniontoRotationMatrix(self, q):
