@@ -13,13 +13,15 @@ import yaml
 import math
 import sys
 import numpy as np
-from mercurial.subrepo import state
+import time
 
 STATE_COUNT_THRESHOLD = 3
 USE_CLASSIFIER = False
 DISPLAY_CAMERA = False
-DISABLE = False
+MEASURE_PERFORMANCE = False
 
+ProcessingTimeSum = 0
+ProcessingIterations = 0
 
 class TLDetector(object):
 ###########################################################################################################################
@@ -71,18 +73,18 @@ class TLDetector(object):
         self.lights = msg.lights
 ###########################################################################################################################
     def image_cb(self, msg):
+        global ProcessingTimeSum, ProcessingIterations
         """Identifies red lights in the incoming camera image and publishes the index
             of the waypoint closest to the red light to /traffic_waypoint
 
         Args:
             msg (Image): image from car-mounted camera
         """
-
+        if MEASURE_PERFORMANCE:
+            startTime = time.time()
+        
         self.has_image = True
         self.camera_image = msg
-
-        if DISABLE:
-            return
 
         light_wp, state = self.process_traffic_lights()
 
@@ -103,8 +105,16 @@ class TLDetector(object):
         else:
             self.upcoming_red_light_pub.publish(Int32(self.last_wp))
         self.state_count += 1
+        
+        if MEASURE_PERFORMANCE:
+            endTime = time.time()
+            duration = endTime-startTime
+            ProcessingTimeSum += duration
+            ProcessingIterations += 1
+            rospy.loginfo("Processing time of image_cb(): " + str(duration) + " average: " + str(ProcessingTimeSum/ProcessingIterations))
 
 ###########################################################################################################################
+    lastWaypointFoundIndex = 0
     def get_closest_waypoint(self, position_x, position_y):
         """Identifies the closest path waypoint to the given position
             https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
@@ -122,18 +132,81 @@ class TLDetector(object):
         #rospy.loginfo('tl.detector.get_closest_waypoint() searching for position (%s, %s) within %s waypoints', pose.position.x, pose.position.y, len(self.waypoints))
 
         smallestDistance = 0
-        #Brute force!: TODO: optimze
-        for i in range(0, len(self.waypoints)):
-            curr_wp_pos = self.waypoints[i].pose.pose.position
-            distance = self.euclidianDistance(position_x, position_y, curr_wp_pos.x, curr_wp_pos.y)
+        increasingCounter = 0
+      
+        startIndex, endIndex = self.calculateStartEndIndex(position_x, position_y)
+
+        for i in range(startIndex, endIndex):
+            
+            distance = self.calculateDistanceForIndex(position_x, position_y, i)
+            
             if index == -1 or distance < smallestDistance:
                 index = i
                 smallestDistance = distance
+                increasingCounter = 0
+            else:
+                increasingCounter += 1
+                
+            if increasingCounter > 10:
+                break
 
         #rospy.loginfo('tl.detector.get_closest_waypoint() found at: ' + str(index) + " " + str(smallestDistance))
-
+        
+        if smallestDistance > 1.0:
+            rospy.logwarn('tl.detector.get_closest_waypoint() found at: ' + str(index) + ", distance " + str(smallestDistance)
+                          + " is greater than 1.0m!")
+        
         return index
-
+###########################################################################################################################
+    def calculateStartEndIndex(self, x, y):
+        numberOfSections = 11
+        numberOfWaypoints = len(self.waypoints)
+        waypointDelta = int(numberOfWaypoints / numberOfSections)
+        distances = []
+        for i in range(0,numberOfSections):
+            distances.append(self.calculateDistanceForIndex(x, y, i*waypointDelta))
+        
+        startIndex = distances.index(min(distances))*waypointDelta 
+        if startIndex > numberOfWaypoints-1:
+            startIndex = numberOfWaypoints-1
+              
+        searchDirection = self.calculateSearchDirection(x, y, startIndex)
+        
+        if searchDirection < 0:
+            endIndex = 0
+        else:
+            endIndex = numberOfWaypoints-1
+        
+        return startIndex, endIndex        
+###########################################################################################################################    
+    def calculateSearchDirection(self, x, y, index ):
+        maxIndex = len(self.waypoints)-1
+        
+        if index == 0:
+            if (self.calculateDistanceForIndex(x, y, index+1) 
+            < self.calculateDistanceForIndex(x, y, maxIndex)):
+                return 1
+            else:
+                return -1
+            
+        if index >= maxIndex:
+            if (self.calculateDistanceForIndex(x, y, 0) 
+            < self.calculateDistanceForIndex(x, y, maxIndex-1)):
+                return 1
+            else:
+                return -1
+        
+        if (self.calculateDistanceForIndex(x, y, index+1) 
+            < self.calculateDistanceForIndex(x, y, index-1)):
+            return 1
+        
+        return -1 
+    
+###########################################################################################################################
+    def calculateDistanceForIndex(self, position_x, position_y, index):            
+        curr_wp_pos = self.waypoints[index].pose.pose.position
+        return self.euclidianDistance(position_x, position_y, curr_wp_pos.x, curr_wp_pos.y)
+        
 ###########################################################################################################################
     def euclidianDistance(self, x1, y1, x2, y2):
         return math.sqrt((x1 -x2)**2 + (y1 - y2)**2)
