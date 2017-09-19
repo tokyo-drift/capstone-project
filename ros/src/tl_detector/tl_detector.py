@@ -117,7 +117,6 @@ class TLDetector(object):
             rospy.loginfo("Processing time of image_cb(): " + str(duration) + " average: " + str(ProcessingTimeSum/ProcessingIterations))
 
 ###########################################################################################################################
-    lastWaypointFoundIndex = 0
     def get_closest_waypoint(self, position_x, position_y):
         """Identifies the closest path waypoint to the given position
             https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
@@ -134,7 +133,6 @@ class TLDetector(object):
 
         position = np.asarray([position_x, position_y])
         dist_squared = np.sum((self.waypoints_array - position)**2, axis=1)
-        t = time.time()
         index = np.argmin(dist_squared)
         #rospy.loginfo('tl.detector.get_closest_waypoint({}) found at = {}, distance = {}, time = {}'.format(
         #    position, index, np.sqrt(dist_squared[index]), time.time() - t))
@@ -176,7 +174,7 @@ class TLDetector(object):
             rospy.logerr("Failed to find camera to map transform")
 
         if trans == None or rot == None:
-            return -1,-1
+            return False, -1,-1
 
         #Use tranform and rotation to calculate 2D position of light in image
 
@@ -194,7 +192,14 @@ class TLDetector(object):
         #Unpack values and return
         ret = ret.reshape(2,)
         #For some reason u & v are swapped
-        return  int(round(ret[1])), int(round(ret[0]))
+        u = int(round(ret[1]))
+        v = int(round(ret[0]))
+        
+        traffic_light_visible = False
+        if u >= 0 and u < image_width and v >= 0 and v <= image_height:
+            traffic_light_visible = True
+            
+        return  traffic_light_visible, u, v
 
 ###########################################################################################################################
     def QuaterniontoRotationMatrix(self, q):
@@ -251,7 +256,7 @@ class TLDetector(object):
 
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 
-        x, y = self.project_to_image_plane(light_pos_x, light_pos_y, light_pos_z)
+        visible, x, y = self.project_to_image_plane(light_pos_x, light_pos_y, light_pos_z)
 
         #Show car image
         if DISPLAY_CAMERA:
@@ -261,10 +266,15 @@ class TLDetector(object):
             cv2.imshow('image', image_tmp)
             cv2.waitKey(1)
 
-        #TODO use light location to zoom in on traffic light in image
+        state = TrafficLight.UNKNOWN
+        if visible:
+            #TODO use light location to zoom in on traffic light in image
 
-        #Get classification
-        return self.light_classifier.get_classification(cv_image)
+            #Get classification
+            state = self.light_classifier.get_classification(cv_image)
+                    
+        #Return state
+        return state
 ###########################################################################################################################
     def get_nearest_traffic_light(self, waypoint_start_index):
         traffic_light = None
