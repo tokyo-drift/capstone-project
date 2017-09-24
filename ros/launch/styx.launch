@@ -20,8 +20,4 @@
 
     <!--Traffic Light Locations and Camera Config -->
     <param name="traffic_light_config" textfile="$(find tl_detector)/sim_traffic_light_config.yaml" />
-
-
-
-    <!-- <include file="$(find waypoint_plotter)/launch/waypoint_plotter.launch"/> -->
 </launch>
