@@ -1,4 +1,7 @@
 <?xml version="1.0"?>
 <launch>
-    <node pkg="waypoint_updater" type="waypoint_updater.py" name="waypoint_updater" />
+    <node pkg="waypoint_updater" type="waypoint_updater.py" name="waypoint_updater">
+      <param name="target_brake_accel" value="-1." />
+      <param name="stop_distance" value="5." />
+    </node>
 </launch>

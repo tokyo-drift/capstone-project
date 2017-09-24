@@ -35,13 +35,10 @@ It won't progress more than ~5 waypoints per cycle. Waypoint follower takes care
 of post-processing this message, filter-out backwards waypoints and provide a
 clean twist value to the DBW node.
 """
-# Tunable parameters. They might need to be changed.
+# Implentation parameters
 LOOKAHEAD_WPS = 200    # Number of waypoints we will publish
-BRAKE_ACCEL = -1.      # Braking acceleration
-STOP_DISTANCE = 5.0    # Distance (m) where car will stop before red light
 PUBLISH_RATE = 20      # Publishing rate (Hz)
 
-# Implentation parameters.
 max_local_distance = 20.0      # Max waypoint distance we admit for a local minimum (m)
 publish_on_light_change = True # Force publishing if next traffic light changes
 stop_on_red = True             # Enable/disable stopping on red lights
@@ -53,7 +50,7 @@ class WaypointUpdater(object):
 
         # Add Subscribers and Publisher
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
+        self.base_wp_sub = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
         rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
         # rospy.Subscriber('/obstacle_waypoint', Int32, self.obstacle_cb)
         self.final_waypoints_pub = rospy.Publisher('final_waypoints', Lane, queue_size=1)
@@ -65,7 +62,20 @@ class WaypointUpdater(object):
         self.current_pose = None # Car pose
         self.red_light_waypoint = None # Waypoint index of the next red light
         self.msg_seq = 0 # Sequence number of /final_waypoints message
-        self.accel = BRAKE_ACCEL # Braking acceleration
+
+        # Parameters
+        self.unsubscribe_base_wp = rospy.get_param('/unregister_base_waypoints', False)
+        self.accel = rospy.get_param('~target_brake_accel', -1.)     # Target brake acceleration
+        self.stop_distance = rospy.get_param('~stop_distance', 5.0)  # Distance (m) where car will stop before red light
+        try:
+            # Ensure that brake accel is at most half of DBW limit (to make braking feasible)
+            # (Using "max" because deceleration is negative)
+            self.accel = max(rospy.get_param('/dbw_node/decel_limit') / 2, self.accel)
+        except KeyError:
+            pass
+
+        rospy.logwarn("Acceleration is {}".format(self.accel))
+        rospy.logwarn("Stop distance is {}".format(self.stop_distance))
 
         # Launch periodic publishing into /final_waypoints
         rate = rospy.Rate(PUBLISH_RATE)
@@ -220,6 +230,9 @@ class WaypointUpdater(object):
 
         self.base_waypoints = waypoints
 
+        if self.unsubscribe_base_wp:
+            self.base_wp_sub.unregister()
+
     def traffic_cb(self, msg):
         """
         Receive and store the waypoint index for the next red traffic light.
@@ -262,8 +275,8 @@ class WaypointUpdater(object):
         for idx in reversed(range(len(waypoints))):
             if idx < stop_index:
                 d += step
-                if d > STOP_DISTANCE:
-                    v = math.sqrt(2*abs(self.accel)*(d-STOP_DISTANCE))
+                if d > self.stop_distance:
+                    v = math.sqrt(2*abs(self.accel)*(d-self.stop_distance))
             if v < self.get_waypoint_velocity(waypoints, idx):
                 self.set_waypoint_velocity(waypoints, idx, v)
 
