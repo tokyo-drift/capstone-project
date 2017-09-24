@@ -17,19 +17,23 @@ class WaypointPlotter(object):
         self.final_waypoints = None
         self.base_waypoints = None
 
-        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
-        rospy.Subscriber('/final_waypoints', Lane, self.final_waypoints_cb)
-        rospy.Subscriber('/base_waypoints', Lane, self.base_waypoints_cb)
+        rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb, queue_size = 1)
+        rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb, queue_size = 1)
+        rospy.Subscriber('/final_waypoints', Lane, self.final_waypoints_cb, queue_size = 1)
+        rospy.Subscriber('/base_waypoints', Lane, self.base_waypoints_cb, queue_size = 1)
 
-        fig = plt.figure(figsize=(8, 6))
-        ax = fig.add_subplot(111)
-        final_waypoints, = ax.plot([], [])
-        base_waypoints, = ax.plot([], [])
-        current_position, = ax.plot([], [])
-        traffic_light, = ax.plot([], [])
+        fig = plt.figure(figsize=(5.6, 8))
 
-        fig.set_visible(False)
+        ax_pos = fig.add_subplot(211)
+        final_waypoints, = ax_pos.plot([], [])
+        base_waypoints, = ax_pos.plot([], [])
+        current_position, = ax_pos.plot([], [])
+        traffic_light, = ax_pos.plot([], [])
+
+        ax_vel = fig.add_subplot(212)
+        velocity, = ax_vel.plot([], [])
+
+        fig.set_visible(True)
         fig.show()
 
         # Launch periodic publishing into /final_waypoints
@@ -44,12 +48,10 @@ class WaypointPlotter(object):
             traffic_light.set_xdata([])
             traffic_light.set_ydata([])
 
-            visible = False
             if self.final_waypoints is not None:
                 final_waypoints.set_xdata([w.pose.pose.position.x for w in self.final_waypoints])
                 final_waypoints.set_ydata([w.pose.pose.position.y for w in self.final_waypoints])
                 final_waypoints.set_marker('o')
-                visible = True
 
             if self.current_pose is not None:
                 current_position.set_xdata([self.current_pose.position.x,])
@@ -57,7 +59,6 @@ class WaypointPlotter(object):
                 current_position.set_marker('o')
                 current_position.set_color('g')
                 current_position.set_markersize(15)
-                visible = True
 
             if self.red_light_waypoint is not None and self.base_waypoints is not None:
                 traffic_pose = self.base_waypoints[self.red_light_waypoint].pose.pose
@@ -66,20 +67,25 @@ class WaypointPlotter(object):
                 traffic_light.set_marker('o')
                 traffic_light.set_markersize(10)
                 traffic_light.set_color('r')
-                visible = True
 
-            ax.relim()
-            ax.set_aspect('equal', 'datalim')
-            ax.autoscale_view(True,True,True)
+            ax_pos.relim()
+            ax_pos.set_aspect('equal', 'datalim')
+            ax_pos.autoscale_view(True,True,True)
 
             if self.base_waypoints is not None:
                 base_waypoints.set_xdata([w.pose.pose.position.x for w in self.base_waypoints])
                 base_waypoints.set_ydata([w.pose.pose.position.y for w in self.base_waypoints])
                 base_waypoints.set_linewidth(0.5)
 
-            #rospy.logwarn('{} {}'.format(ax.get_xlim(), ax.get_ylim()))
+
+            if self.final_waypoints is not None:
+                velocity.set_xdata([i for i, w in enumerate(self.final_waypoints)])
+                velocity.set_ydata([w.twist.twist.linear.x for w in self.final_waypoints])
+
+            ax_vel.relim()
+            ax_vel.autoscale_view(True,True,True)
+
             fig.canvas.draw_idle()
-            fig.set_visible(visible)
             plt.pause(0.1)
 
 
