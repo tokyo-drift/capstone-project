@@ -15,7 +15,7 @@ import sys
 import numpy as np
 import time
 
-STATE_COUNT_THRESHOLD = 3
+STATE_COUNT_THRESHOLD = 1
 USE_CLASSIFIER = True
 DISPLAY_CAMERA = False
 MEASURE_PERFORMANCE = False
