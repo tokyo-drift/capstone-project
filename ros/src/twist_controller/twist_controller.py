@@ -26,6 +26,10 @@ class Controller(object):
         self.yaw_controller = YawController(wheel_base, steer_ratio, min_speed, max_lat_accel, max_steer_angle)
         self.steering_pid = PID(kp=0.15, ki=0.001, kd=0.1, mn=-max_steer_angle, mx=max_steer_angle)
 
+    def reset(self):
+        self.linear_pid.reset()
+        self.steering_pid.reset()
+
     def control(self, proposed_linear_velocity, proposed_angular_velocity, current_linear_velocity, cross_track_error, duration_in_seconds):
         linear_velocity_error = proposed_linear_velocity - current_linear_velocity
 
