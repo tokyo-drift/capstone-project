@@ -19,7 +19,7 @@ class Timer:
         return self
     def __exit__(self, *args):
         message = '{} in {} seconds'.format(self.message, time.clock() - self.start)
-        rospy.loginfo(message)
+        # rospy.loginfo(message)
 
 # Function to load a graph from a protobuf file
 def _load_graph(graph_file, config, verbose = False):
@@ -135,20 +135,13 @@ class TLClassifier(object):
         self.index2msg = {0: TrafficLight.RED, 1: TrafficLight.GREEN, 2: TrafficLight.YELLOW}
         self.index2color = {0: (255, 0, 0), 1: (0, 255, 0), 2: (255, 255, 0)}
 
-        ## subscriber to on/off traffic light image
-        ## rostopic pub -1 /tld/publish_traffic_lights std_msgs/Bool True
-        ## rosrun image_view image_view image:=/tld/traffic_light
-        self.publish_traffic_light = False
-        self.publish_traffic_light_sub = rospy.Subscriber('/tld/publish_traffic_lights', Bool, self.publish_traffic_light_cb)
-        self.traffic_light_pub = rospy.Publisher('/tld/traffic_light', Image, queue_size = 1)
+        # TL publisher
         self.bridge = CvBridge()
+        self.traffic_light_pub = rospy.Publisher('/tld/traffic_light', Image, queue_size = 1)
 
         ## kick classification to preload models
         self.detection(cv2.cvtColor(np.zeros((600, 800), np.uint8), cv2.COLOR_GRAY2RGB))
         self.classification(cv2.cvtColor(np.zeros((32, 32), np.uint8), cv2.COLOR_GRAY2RGB))
-
-    def publish_traffic_light_cb(self, msg):
-        self.publish_traffic_light = bool(msg)
 
     def get_classification(self, image):
         with Timer('get_classification'):
@@ -185,7 +178,8 @@ class TLClassifier(object):
             sf_ind = sfmax.index(max(sfmax))
 
             ## add a colored bbox and publish traffic light if needed
-            if self.publish_traffic_light:
+            ## rosparam set /tl_detector/publish_traffic_light true
+            if rospy.get_param('~publish_traffic_light', False):
                 cv2.rectangle(image, (0, 0), (31, 31), self.index2color[sf_ind], 1)
                 self.traffic_light_pub.publish(self.bridge.cv2_to_imgmsg(image, "rgb8"))
 
