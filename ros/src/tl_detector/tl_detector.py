@@ -69,8 +69,10 @@ class TLDetector(object):
     def waypoints_cb(self, waypoints):
         self.waypoints = waypoints.waypoints
         self.waypoints_array = np.asarray([(w.pose.pose.position.x, w.pose.pose.position.y) for w in waypoints.waypoints])
-        self.sub2.unregister()
         #rospy.loginfo('waypoints {} = {}'.format(self.waypoints_array.shape, self.waypoints_array))
+        if rospy.get_param('/unregister_base_waypoints', False):
+            self.sub2.unregister()
+            rospy.loginfo('base_waypoints subscriber unregistered')
 
 ###########################################################################################################################
     def traffic_cb(self, msg):
