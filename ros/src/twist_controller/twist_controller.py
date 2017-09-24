@@ -21,7 +21,8 @@ class Controller(object):
         min_speed = 0 # TODO: What is a good value for min speed?
 
 
-        self.linear_pid = PID(kp=0.2, ki=0.005, kd=0.1, mn=decel_limit, mx=0.5 * accel_limit)
+        #self.linear_pid = PID(kp=0.2, ki=0.005, kd=0.1, mn=decel_limit, mx=0.5 * accel_limit)
+        self.linear_pid = PID(kp=0.8, ki=0, kd=0.05, mn=decel_limit, mx=0.5 * accel_limit)
         self.yaw_controller = YawController(wheel_base, steer_ratio, min_speed, max_lat_accel, max_steer_angle)
         self.steering_pid = PID(kp=0.15, ki=0.001, kd=0.1, mn=-max_steer_angle, mx=max_steer_angle)
 

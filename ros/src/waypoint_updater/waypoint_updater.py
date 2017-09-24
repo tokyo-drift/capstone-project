@@ -39,7 +39,7 @@ clean twist value to the DBW node.
 LOOKAHEAD_WPS = 200    # Number of waypoints we will publish
 BRAKE_ACCEL = -1.      # Braking acceleration
 STOP_DISTANCE = 5.0    # Distance (m) where car will stop before red light
-PUBLISH_RATE = 1       # Publishing rate (Hz)
+PUBLISH_RATE = 20      # Publishing rate (Hz)
 
 # Implentation parameters.
 max_local_distance = 20.0      # Max waypoint distance we admit for a local minimum (m)
@@ -79,11 +79,11 @@ class WaypointUpdater(object):
         @return True if a valid waypoint has been updated, False otherwise
         """
         if not self.base_waypoints:
-            rospy.logwarn("Waypoints not updated: base_waypoints not available yet.")
+            #rospy.logwarn("Waypoints not updated: base_waypoints not available yet.")
             return False
 
         if not self.current_pose:
-            rospy.logwarn("Waypoints not updated: current_pose not available yet.")
+            #rospy.logwarn("Waypoints not updated: current_pose not available yet.")
             return False
 
         # Get ego car variables

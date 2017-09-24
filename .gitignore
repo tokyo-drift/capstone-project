@@ -9,3 +9,4 @@ profile.tmp
 /ros/src/styx/*.bak
 /ros/src/tl_detector/*.bak
 *.bag
+.DS_Store
