@@ -74,8 +74,8 @@ class WaypointUpdater(object):
         except KeyError:
             pass
 
-        rospy.logwarn("Acceleration is {}".format(self.accel))
-        rospy.logwarn("Stop distance is {}".format(self.stop_distance))
+        rospy.loginfo("Acceleration is {}".format(self.accel))
+        rospy.loginfo("Stop distance is {}".format(self.stop_distance))
 
         # Launch periodic publishing into /final_waypoints
         rate = rospy.Rate(PUBLISH_RATE)
