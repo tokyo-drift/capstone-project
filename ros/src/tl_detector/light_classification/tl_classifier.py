@@ -5,20 +5,35 @@ import os
 import cv2
 import numpy as np
 import rospy
+import time
 
 from cv_bridge import CvBridge, CvBridgeError
 from std_msgs.msg import Bool
 from sensor_msgs.msg import Image
 
+class Timer:
+    def __init__(self, message = ''):
+        self.message = message
+    def __enter__(self):
+        self.start = time.clock()
+        return self
+    def __exit__(self, *args):
+        message = '{} in {} seconds'.format(self.message, time.clock() - self.start)
+        rospy.loginfo(message)
+
 # Function to load a graph from a protobuf file
-def _load_graph(graph_file, config):
+def _load_graph(graph_file, config, verbose = False):
     with tf.Session(graph=tf.Graph(), config=config) as sess:
+        assert tf.get_default_session() is sess
         gd = tf.GraphDef()
         with tf.gfile.Open(graph_file, 'rb') as f:
             data = f.read()
             gd.ParseFromString(data)
         tf.import_graph_def(gd, name='')
-        return sess.graph
+        graph = tf.get_default_graph()
+        if verbose:
+            print ('Graph v' + str(graph.version) + ', nodes: '+ ', '.join([n.name for n in graph.as_graph_def().node]))
+        return graph
 
 # extract traffic light box with maximal confidence
 def _extractBox(boxes, scores, classes, confidence, im_width, im_height):
@@ -65,7 +80,7 @@ def _extractBox(boxes, scores, classes, confidence, im_width, im_height):
         return None
 
 class TLClassifier(object):
-    def __init__(self, model_dir = None, config = {}):
+    def __init__(self, model_dir = None):
 
         ## Get model directory and check model files
         if model_dir is None:
@@ -83,12 +98,22 @@ class TLClassifier(object):
             rospy.logerr('Classification model not found at {}'.format(classification_model_path))
 
         # Activate optimizations for TF
-        self.config = tf.ConfigProto()
+        if os.getenv('HOSTNAME') == 'miha-mx':
+            self.config = tf.ConfigProto(device_count = {'GPU': 1, 'CPU': 1}) # log_device_placement=True
+            self.config.gpu_options.allow_growth = True
+            self.config.gpu_options.per_process_gpu_memory_fraction = 0.9
+        else:
+            self.config = tf.ConfigProto()
         jit_level = tf.OptimizerOptions.ON_1
         self.config.graph_options.optimizer_options.global_jit_level = jit_level
 
+        # Load graphs
         self.graph_detection = _load_graph(detection_model_path, self.config)
         self.graph_classification = _load_graph(classification_model_path, self.config)
+
+        # Create TF sessions
+        self.sess_detection = tf.Session(graph=self.graph_detection, config=self.config)
+        self.sess_classification = tf.Session(graph=self.graph_classification, config=self.config)
 
         # Definite input and output Tensors for detection_graph
         self.image_tensor = self.graph_detection.get_tensor_by_name('image_tensor:0')
@@ -122,6 +147,12 @@ class TLClassifier(object):
         self.publish_traffic_light = bool(msg)
 
     def get_classification(self, image):
+        with Timer('get_classification'):
+            light = self.inference(image)
+            rospy.loginfo('light = {}'.format(light))
+            return light
+
+    def inference(self, image):
         """Determines the color of the traffic light in the image
 
         Args:
@@ -135,14 +166,15 @@ class TLClassifier(object):
 
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         im_height, im_width, _ = image.shape
+        #image_scaled = cv2.resize(image, (int(0.333 * im_height), int(0.33 * im_height)), interpolation = cv2.INTER_CUBIC)
         image_expanded = np.expand_dims(image, axis=0)
 
         # Detection
-        with tf.Session(graph=self.graph_detection, config=self.config) as sess:
-            # Do the inference
-            boxes, scores, classes = sess.run(
+        with self.sess_detection.as_default(), self.graph_detection.as_default(), Timer('detection'):
+            boxes, scores, classes = self.sess_detection.run(
                 [self.detection_boxes, self.detection_scores, self.detection_classes],
                 feed_dict={self.image_tensor: image_expanded})
+
             # Extract box and append to list
             box = _extractBox(boxes, scores, classes, 0.1, im_width, im_height)
 
@@ -150,11 +182,11 @@ class TLClassifier(object):
             return TrafficLight.UNKNOWN
 
         # Classification
-        with tf.Session(graph=self.graph_classification, config=self.config) as sess:
+        with self.sess_classification.as_default(), self.graph_classification.as_default(), Timer('classification'):
             left, right, top, bottom = box
             img_crop = image[top:bottom, left:right]
             traffic_light = cv2.resize(img_crop, (32, 32))
-            sfmax = list(sess.run(tf.nn.softmax(self.out_graph.eval(feed_dict={self.in_graph: [traffic_light]}))))
+            sfmax = list(self.sess_classification.run(tf.nn.softmax(self.out_graph.eval(feed_dict={self.in_graph: [traffic_light]}))))
             sf_ind = sfmax.index(max(sfmax))
 
             ## add a colored bbox and publish traffic light if needed
@@ -162,18 +194,14 @@ class TLClassifier(object):
                 cv2.rectangle(traffic_light, (0, 0), (31, 31), self.index2color[sf_ind], 1)
                 self.traffic_light_pub.publish(self.bridge.cv2_to_imgmsg(traffic_light, "rgb8"))
 
-            return self.index2msg[sf_ind]
-
-        return TrafficLight.UNKNOWN
+        return self.index2msg[sf_ind]
 
 
 if __name__ == "__main__":
-    classifier = TLClassifier() # config = {'device_count': {'GPU': 0}}, log_device_placement = True
+    classifier = TLClassifier(model_dir = 'model')
     classifier.publish_traffic_light = False
 
-    import rospkg
-    rp = rospkg.RosPack()
-    images_dir = os.path.join(rp.get_path('tl_detector'), 'images')
+    images_dir = 'images'
 
     ## local tests
     for name in ['1505373294_515779972.png', '1505413792_582132101.png', '1505373315_368932962.png', '1505373321_652045011.png']:
