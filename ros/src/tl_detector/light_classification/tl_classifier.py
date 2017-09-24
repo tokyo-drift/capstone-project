@@ -101,7 +101,7 @@ class TLClassifier(object):
         if os.getenv('HOSTNAME') == 'miha-mx':
             self.config = tf.ConfigProto(device_count = {'GPU': 1, 'CPU': 1}) # log_device_placement=True
             self.config.gpu_options.allow_growth = True
-            self.config.gpu_options.per_process_gpu_memory_fraction = 0.9
+            self.config.gpu_options.per_process_gpu_memory_fraction = 1
         else:
             self.config = tf.ConfigProto()
         jit_level = tf.OptimizerOptions.ON_1
@@ -143,59 +143,53 @@ class TLClassifier(object):
         self.traffic_light_pub = rospy.Publisher('/tld/traffic_light', Image, queue_size = 1)
         self.bridge = CvBridge()
 
+        ## kick classification to preload models
+        self.detection(cv2.cvtColor(np.zeros((600, 800), np.uint8), cv2.COLOR_GRAY2RGB))
+        self.classification(cv2.cvtColor(np.zeros((32, 32), np.uint8), cv2.COLOR_GRAY2RGB))
+
     def publish_traffic_light_cb(self, msg):
         self.publish_traffic_light = bool(msg)
 
     def get_classification(self, image):
         with Timer('get_classification'):
-            light = self.inference(image)
-            rospy.loginfo('light = {}'.format(light))
-            return light
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
-    def inference(self, image):
-        """Determines the color of the traffic light in the image
+            box = self.detection(image)
+            if box == None:
+                return TrafficLight.UNKNOWN
 
-        Args:
-            image (cv::Mat): image containing the traffic light
+            left, right, top, bottom = box
+            img_crop = image[top:bottom, left:right]
+            traffic_light = cv2.resize(img_crop, (32, 32))
 
-        Returns:
-            int: ID of traffic light color (specified in styx_msgs/TrafficLight)
+            return self.classification(traffic_light)
 
-        """
-        # Load image and convert
-
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    def detection(self, image):
+        """ Traffic light detection """
         im_height, im_width, _ = image.shape
-        #image_scaled = cv2.resize(image, (int(0.333 * im_height), int(0.33 * im_height)), interpolation = cv2.INTER_CUBIC)
         image_expanded = np.expand_dims(image, axis=0)
 
-        # Detection
         with self.sess_detection.as_default(), self.graph_detection.as_default(), Timer('detection'):
             boxes, scores, classes = self.sess_detection.run(
                 [self.detection_boxes, self.detection_scores, self.detection_classes],
                 feed_dict={self.image_tensor: image_expanded})
 
             # Extract box and append to list
-            box = _extractBox(boxes, scores, classes, 0.1, im_width, im_height)
+            return _extractBox(boxes, scores, classes, 0.1, im_width, im_height)
 
-        if box == None:
-            return TrafficLight.UNKNOWN
-
-        # Classification
+    # Classification
+    def classification(self, image):
+        """ Traffic light classification """
         with self.sess_classification.as_default(), self.graph_classification.as_default(), Timer('classification'):
-            left, right, top, bottom = box
-            img_crop = image[top:bottom, left:right]
-            traffic_light = cv2.resize(img_crop, (32, 32))
-            sfmax = list(self.sess_classification.run(tf.nn.softmax(self.out_graph.eval(feed_dict={self.in_graph: [traffic_light]}))))
+            sfmax = list(self.sess_classification.run(tf.nn.softmax(self.out_graph.eval(feed_dict={self.in_graph: [image]}))))
             sf_ind = sfmax.index(max(sfmax))
 
             ## add a colored bbox and publish traffic light if needed
             if self.publish_traffic_light:
-                cv2.rectangle(traffic_light, (0, 0), (31, 31), self.index2color[sf_ind], 1)
-                self.traffic_light_pub.publish(self.bridge.cv2_to_imgmsg(traffic_light, "rgb8"))
+                cv2.rectangle(image, (0, 0), (31, 31), self.index2color[sf_ind], 1)
+                self.traffic_light_pub.publish(self.bridge.cv2_to_imgmsg(image, "rgb8"))
 
         return self.index2msg[sf_ind]
-
 
 if __name__ == "__main__":
     classifier = TLClassifier(model_dir = 'model')
