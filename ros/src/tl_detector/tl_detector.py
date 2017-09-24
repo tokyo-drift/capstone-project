@@ -15,8 +15,6 @@ import sys
 import numpy as np
 import time
 
-STATE_COUNT_THRESHOLD = 1
-USE_CLASSIFIER = True
 DISPLAY_CAMERA = False
 MEASURE_PERFORMANCE = False
 
@@ -43,13 +41,8 @@ class TLDetector(object):
         simulator. When testing on the vehicle, the color state will not be available. You'll need to
         rely on the position of the light and the camera image to predict it.
         '''
-        sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
-        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
-
         config_string = rospy.get_param("/traffic_light_config")
         self.config = yaml.load(config_string)
-
-        self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
 
         self.bridge = CvBridge()
 
@@ -60,6 +53,10 @@ class TLDetector(object):
         self.last_state = TrafficLight.UNKNOWN
         self.last_wp = -1
         self.state_count = 0
+
+        self.upcoming_red_light_pub = rospy.Publisher('/traffic_waypoint', Int32, queue_size=1)
+        sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
+        sub6 = rospy.Subscriber('/image_color', Image, self.image_cb, queue_size=1)
 
         rospy.spin()
 ###########################################################################################################################
@@ -96,14 +93,14 @@ class TLDetector(object):
 
         '''
         Publish upcoming red lights at camera frequency.
-        Each predicted state has to occur `STATE_COUNT_THRESHOLD` number
+        Each predicted state has to occur `~state_count_threshold` number
         of times till we start using it. Otherwise the previous stable state is
         used.
         '''
         if self.state != state:
             self.state_count = 0
             self.state = state
-        elif self.state_count >= STATE_COUNT_THRESHOLD:
+        elif self.state_count >= rospy.get_param('~state_count_threshold', 3):
             self.last_state = self.state
             light_wp = light_wp if state == TrafficLight.RED else -1
             self.last_wp = light_wp
@@ -197,11 +194,11 @@ class TLDetector(object):
         #For some reason u & v are swapped
         u = int(round(ret[1]))
         v = int(round(ret[0]))
-        
+
         traffic_light_visible = False
         if u >= 0 and u < image_width and v >= 0 and v <= image_height:
             traffic_light_visible = True
-            
+
         return  traffic_light_visible, u, v
 
 ###########################################################################################################################
@@ -275,7 +272,7 @@ class TLDetector(object):
 
             #Get classification
             state = self.light_classifier.get_classification(cv_image)
-                    
+
         #Return state
         return state
 ###########################################################################################################################
@@ -315,7 +312,7 @@ class TLDetector(object):
                     #rospy.loginfo("Next traffic light ahead from waypoint " + str(car_position) +
                     #              " is at position " + str(light_pos) + " at waypoint " + str(light_waypoint))
                     state = TrafficLight.UNKNOWN
-                    if USE_CLASSIFIER:
+                    if rospy.get_param('~use_classifier', False):
                         state = self.get_light_state(light_pos[0], light_pos[1], light_pos[2] if len(light_pos) >= 3 else 0.)
                     else:
                         for light in self.lights:

@@ -2,6 +2,8 @@
 <launch>
   <node pkg="tl_detector" type="tl_detector.py" name="tl_detector" output="screen" cwd="node">
     <param name="publish_traffic_light" value="true" type="bool" />
+    <param name="state_count_threshold" value="1" type="int" />
+    <param name="use_classifier" value="true" type="bool" />
   </node>
 
   <!-- <node pkg="rostopic" type="rostopic" name="rostopic" args="pub -1 /tld/publish_traffic_lights std_msgs/Bool True" output="screen"/> -->
