@@ -324,7 +324,6 @@ class TLDetector(object):
 
                     return light_waypoint, state
 
-        self.waypoints = None #TODO: Is this really needed?
         return -1, TrafficLight.UNKNOWN
 ###########################################################################################################################
 if __name__ == '__main__':
