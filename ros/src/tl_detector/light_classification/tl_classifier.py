@@ -149,6 +149,8 @@ class TLClassifier(object):
 
             box = self.detection(image)
             if box == None:
+                if rospy.get_param('~publish_traffic_light', False):
+                    self.traffic_light_pub.publish(self.bridge.cv2_to_imgmsg(cv2.cvtColor(np.zeros((32, 32), np.uint8), cv2.COLOR_GRAY2RGB), "rgb8"))
                 return TrafficLight.UNKNOWN
 
             left, right, top, bottom = box
