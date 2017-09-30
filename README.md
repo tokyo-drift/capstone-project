@@ -8,7 +8,7 @@ This is the project repo for the final project of the Udacity Self-Driving Car N
 
 This project has been done by:
 
-- Deborah Digges (**team lead**)
+- Deborah Digges (**team lead**) - deb.angel919@gmail.com
 - Max Ritter
 - Christian Schaefer
 - Pablo Perez -- pab.perez@gmail.com
