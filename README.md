@@ -99,6 +99,21 @@ Waypoint updater publishes the next 200 waypoints ahead of the car position, wit
 
 Besides, the car is forced to stop at the last waypoint if either its velocity in `/base_waypoints` is set to 0 or the parameter `~force_stop_on_last_waypoint` is true.
 
+### Drive By Wire Node
+
+This module takes place of controlling 3 values: the steering, the throttle and the brake.
+
+#### Steering 
+Steering is handled by a combination of predictive steering and corrective steering. Predictive Steering is implemented using the provided `YawController` class. Corrective steering is computed by calculating the cross-track-error which is then passed to a linear PID which returns the corrective steering angle. These are added together to give the final steering angle
+
+#### Throttle
+Throttle is controlled by a linear PID by passing in the velocity error(difference between the current velocity and the proposed velocity)
+
+
+#### Brake
+If a negative value is returned by the throttle PID, it means that the car needs to decelerate by braking. The braking torque is calculated by the formula `(vehicle_mass + fuel_capacity * GAS_DENSITY) * wheel_radius * deceleration`
+
+
 ### Traffic light detector
 
 Traffic light detection is based on pre-trained on the COCO dataset model [ssd_mobilenet_v1_coco](http://download.tensorflow.org/models/object_detection/ssd_mobilenet_v1_coco_11_06_2017.tar.gz) from https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/detection_model_zoo.md
