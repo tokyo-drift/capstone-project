@@ -86,3 +86,14 @@ Video recording of the traffic light detection and classification with video str
 
 
 Non-black image of `/tld/traffic_light` topic shows the detected traffic light box and adds a colored bounding box (red, amber, green) with the classified color around the cropped traffic light image. GPU hardware and software: Nvidia GeForce 940MX, driver version: 378.13, CUDA 8.0.44, cuDNN v7, detection latency is 200-500ms.
+
+
+## Implementation details
+
+### Traffic light detector
+
+Traffic light detection is based on pre-trained on the COCO dataset model [ssd_mobilenet_v1_coco](http://download.tensorflow.org/models/object_detection/ssd_mobilenet_v1_coco_11_06_2017.tar.gz) from https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/detection_model_zoo.md
+
+The traffic light classification model is [a SqueezeNet model](https://arxiv.org/abs/1602.07360) trained on some real life and simulator traffic light images in project https://github.com/tokyo-drift/traffic_light_classifier
+
+The ROS traffic light detector is implemented in node `tl_detector` in classes `TLDetector` and `TLClassifier`. `TLDetector` is responsible for finding a nearest traffic light position and calls `TLClassifier.get_classification` with the current camera image. `TLClassifier` first uses the SSD MobileNet model to detect a traffic light bounding box with the highest confidence. If the bounding box is found a cropped traffic light image is scaled to a 32x32 image and the SqueezeNet model infers the traffic light color (red, amber, green). If at least 3 last images were classified as red then `TLDetector` publishes the traffic light waypoint index in the `/traffic_waypoint` topic.
