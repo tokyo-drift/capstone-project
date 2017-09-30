@@ -30,10 +30,8 @@ We assume:
   - Distance between consecutive waypoints ~ 0.5 to 1m
   - Max speed ~ 10 MPH = 4.47 m/s
 
-Under this conditions, PUBLISH_RATE is set to 1 Hz to avoid impact on performance.
-It won't progress more than ~5 waypoints per cycle. Waypoint follower takes care
-of post-processing this message, filter-out backwards waypoints and provide a
-clean twist value to the DBW node.
+PUBLISH_RATE is set to 20 Hz. Under this conditions, the car shouldn't move
+more than 1-2 waypoints between consecutive calls.
 """
 # Implentation parameters
 LOOKAHEAD_WPS = 200    # Number of waypoints we will publish
@@ -41,7 +39,6 @@ PUBLISH_RATE = 20      # Publishing rate (Hz)
 
 max_local_distance = 20.0      # Max waypoint distance we admit for a local minimum (m)
 publish_on_light_change = True # Force publishing if next traffic light changes
-stop_on_red = True             # Enable/disable stopping on red lights
 debugging = True               # Set to False for release (not too verbose, but it saves some computation power)
 
 class WaypointUpdater(object):
@@ -64,6 +61,8 @@ class WaypointUpdater(object):
         self.msg_seq = 0 # Sequence number of /final_waypoints message
 
         # Parameters
+        self.stop_on_red = rospy.get_param('~stop_on_red', True)      # Enable/disable stopping on red lights
+        self.force_stop_on_last_waypoint = rospy.get_param('~force_stop_on_last_waypoint', True)   # Enable/disable stopping on last waypoint
         self.unsubscribe_base_wp = rospy.get_param('/unregister_base_waypoints', False)
         self.accel = rospy.get_param('~target_brake_accel', -1.)     # Target brake acceleration
         self.stop_distance = rospy.get_param('~stop_distance', 5.0)  # Distance (m) where car will stop before red light
@@ -158,22 +157,32 @@ class WaypointUpdater(object):
 
             # 2. Generate the list of next LOOKAHEAD_WPS waypoints
             num_base_wp = len(self.base_waypoints)
+            last_base_wp = num_base_wp-1
             waypoint_idx = [idx % num_base_wp for idx in range(self.next_waypoint,self.next_waypoint+LOOKAHEAD_WPS)]
             final_waypoints = [self.base_waypoints[wp] for wp in waypoint_idx]
 
             # 3. If there is a red light ahead, update velocity for them
-            if stop_on_red:
+            if self.stop_on_red:
                 # Start from original velocities
                 self.restore_velocities(waypoint_idx)
                 try:
                     red_idx = waypoint_idx.index(self.red_light_waypoint)
-                    self.decelerate(final_waypoints, red_idx)
+                    self.decelerate(final_waypoints, red_idx, self.stop_distance)
                 except ValueError:
                     # No red light available: self.red_light_waypoint is None or not in final_waypoints
                     red_idx = None
                 if debugging:
                     v = self.get_waypoint_velocity(final_waypoints, 0)
                     rospy.loginfo("Target velocity: %.1f, RL:%s wps ahead", v, str(red_idx))
+
+            # 3b. If we are close to the end of the circuit, make sure that we stop there
+            if self.force_stop_on_last_waypoint or self.base_wp_orig_v[-1] < 1e-5:
+                try:
+                    last_wp_idx = waypoint_idx.index(last_base_wp)
+                    self.decelerate(final_waypoints, last_wp_idx, 0)
+                except ValueError:
+                    # Last waypoint is not one of the next LOOKAHEAD_WPS
+                    pass
 
             # 4. Publish waypoints to "/final_waypoints"
             self.publish_msg(final_waypoints)
@@ -257,7 +266,7 @@ class WaypointUpdater(object):
         for idx in indexes:
             self.set_waypoint_velocity(self.base_waypoints, idx, self.base_wp_orig_v[idx])
 
-    def decelerate(self, waypoints, stop_index):
+    def decelerate(self, waypoints, stop_index, stop_distance):
         """
         Decelerate a list of wayponts so that they stop on stop_index
         """
@@ -276,7 +285,7 @@ class WaypointUpdater(object):
             if idx < stop_index:
                 d += step
                 if d > self.stop_distance:
-                    v = math.sqrt(2*abs(self.accel)*(d-self.stop_distance))
+                    v = math.sqrt(2*abs(self.accel)*(d-stop_distance))
             if v < self.get_waypoint_velocity(waypoints, idx):
                 self.set_waypoint_velocity(waypoints, idx, v)
 
