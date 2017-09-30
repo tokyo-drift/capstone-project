@@ -19,14 +19,14 @@ This project has been done by:
 
 ![image](docs/architecture.png)
 
-### Installation 
+### Installation
 
-* Be sure that your workstation is running Ubuntu 16.04 Xenial Xerus or Ubuntu 14.04 Trusty Tahir. [Ubuntu downloads can be found here](https://www.ubuntu.com/download/desktop). 
+* Be sure that your workstation is running Ubuntu 16.04 Xenial Xerus or Ubuntu 14.04 Trusty Tahir. [Ubuntu downloads can be found here](https://www.ubuntu.com/download/desktop).
 * If using a Virtual Machine to install Ubuntu, use the following configuration as minimum:
   * 2 CPU
   * 2 GB system memory
   * 25 GB of free hard drive space
-  
+
   The Udacity provided virtual machine has ROS and Dataspeed DBW already installed, so you can skip the next two steps if you are using this.
 
 * Follow these instructions to install ROS
@@ -58,7 +58,7 @@ roslaunch launch/styx.launch
 4. Run the simulator
 
 ### Real world testing
-1. Download [training bag](https://drive.google.com/file/d/0B2_h37bMVw3iYkdJTlRSUlJIamM/view?usp=sharing) that was recorded on the Udacity self-driving car (a bag demonstraing the correct predictions in autonomous mode can be found [here](https://drive.google.com/open?id=0B2_h37bMVw3iT0ZEdlF4N01QbHc)) 
+1. Download [training bag](https://drive.google.com/file/d/0B2_h37bMVw3iYkdJTlRSUlJIamM/view?usp=sharing) that was recorded on the Udacity self-driving car (a bag demonstraing the correct predictions in autonomous mode can be found [here](https://drive.google.com/open?id=0B2_h37bMVw3iT0ZEdlF4N01QbHc))
 2. Unzip the file
 ```bash
 unzip traffic_light_bag_files.zip
@@ -73,3 +73,16 @@ cd CarND-Capstone/ros
 roslaunch launch/site.launch
 ```
 5. Confirm that traffic light detection works on real life images
+
+Video recording of the traffic light detection and classification with video streams from ROS bag files:
+- `just_traffic_light.bag`
+
+[![TL for just_traffic_light.bag](https://img.youtube.com/vi/ZPzHfzaCYDQ/0.jpg)](https://www.youtube.com/embed/ZPzHfzaCYDQ?rel=0)
+
+- `loop_with_traffic_light.bag`
+
+[![TL for loop_with_traffic_light.bag](https://img.youtube.com/vi/3zVmx2ysdV0/0.jpg)](https://www.youtube.com/embed/3zVmx2ysdV0?rel=0)
+
+
+
+Non-black image of `/tld/traffic_light` topic shows the detected traffic light box and adds a colored bounding box (red, amber, green) with the classified color around the cropped traffic light image. GPU hardware and software: Nvidia GeForce 940MX, driver version: 378.13, CUDA 8.0.44, cuDNN v7, detection latency is 200-500ms.
