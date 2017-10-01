@@ -10,7 +10,7 @@ This project has been done by:
 
 - Deborah Digges (**team lead**) - deb.angel919@gmail.com
 - Max Ritter - mail@maxritter.net
-- Christian Schaefer
+- Christian Schaefer - christian@inf-Schaefer.de
 - Pablo Perez -- pab.perez@gmail.com
 - Michael Krasnyk -- michael.krasnyk@gmail.com
 
