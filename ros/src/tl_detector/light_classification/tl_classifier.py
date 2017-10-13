@@ -7,11 +7,6 @@ import numpy as np
 import rospy
 import time
 
-from tensorflow.python.platform import gfile
-from tensorflow.python.util import compat
-from tensorflow.core.protobuf import saved_model_pb2
-from google.protobuf import message
-
 from cv_bridge import CvBridge, CvBridgeError
 from std_msgs.msg import Bool
 from sensor_msgs.msg import Image
@@ -40,17 +35,8 @@ def _load_graph(graph_file, config, verbose = False):
             print ('Graph v' + str(graph.version) + ', nodes: '+ ', '.join([n.name for n in graph.as_graph_def().node]))
         return graph
 
-def _load_graph_detection(graph_file, config):
-    with tf.Session(graph=tf.Graph(), config=config) as sess:
-        with gfile.FastGFile(graph_file, 'rb') as f:
-            data = compat.as_bytes(f.read())
-            sm = saved_model_pb2.SavedModel()
-            sm.ParseFromString(data)
-            tf.import_graph_def(sm.meta_graphs[0].graph_def, name='')
-        return sess.graph
-
 # extract traffic light box with maximal confidence
-def _extractBox(boxes, scores, classes, confidence, im_width, im_height, tl_class):
+def _extractBox(boxes, scores, classes, confidence, im_width, im_height):
     # Prepare stuff
     boxes = np.squeeze(boxes)
     classes = np.squeeze(classes).astype(np.int32)
@@ -60,7 +46,7 @@ def _extractBox(boxes, scores, classes, confidence, im_width, im_height, tl_clas
     maxConf = 0
     number = -1
     for i in range(boxes.shape[0]):
-        if scores[i] > confidence and (tl_class == 0 or classes[i] == tl_class):
+        if scores[i] > confidence and classes[i] == 10:
             if scores[i] > maxConf:
                 maxConf = scores[i]
                 number = i
@@ -103,15 +89,11 @@ class TLClassifier(object):
             model_dir = os.path.join(rp.get_path('tl_detector'), 'model')
         rospy.loginfo('Using model directory {}'.format(model_dir))
 
-        detection_model_path = os.path.join(model_dir, rospy.get_param('~model_detection', 'model_detection.pb'))
-        if not os.path.isabs(detection_model_path):
-            detection_model_path = os.path.join(model_dir, detection_model_path)
+        detection_model_path = os.path.join(model_dir, 'model_detection.pb')
         if not os.path.exists(detection_model_path):
             rospy.logerr('Detection model not found at {}'.format(detection_model_path))
 
-        classification_model_path = rospy.get_param('~model_classification', 'model_classification.pb')
-        if not os.path.isabs(classification_model_path):
-            classification_model_path = os.path.join(model_dir, classification_model_path)
+        classification_model_path = os.path.join(model_dir, 'model_classification.pb')
         if not os.path.exists(classification_model_path):
             rospy.logerr('Classification model not found at {}'.format(classification_model_path))
 
@@ -119,24 +101,14 @@ class TLClassifier(object):
         if os.getenv('HOSTNAME') == 'miha-mx':
             self.config = tf.ConfigProto(device_count = {'GPU': 1, 'CPU': 1}) # log_device_placement=True
             self.config.gpu_options.allow_growth = True
-            self.config.gpu_options.per_process_gpu_memory_fraction = 0.75
+            self.config.gpu_options.per_process_gpu_memory_fraction = 1
         else:
             self.config = tf.ConfigProto()
         jit_level = tf.OptimizerOptions.ON_1
         self.config.graph_options.optimizer_options.global_jit_level = jit_level
 
-        # Load detection model
-        try:
-            ## Try to load vanilla model
-            self.graph_detection = _load_graph(detection_model_path, self.config)
-            ## https://github.com/tensorflow/models/tree/master/research/object_detection/data/mscoco_label_map.pbtxt#L48
-            self.tl_class = 10 # "traffic light" class
-        except message.DecodeError, exc:
-            ## Load retrained model
-            self.graph_detection = _load_graph_detection(detection_model_path, self.config)
-            self.tl_class = 0 # don't use classes
-
-        # Load classification model
+        # Load graphs
+        self.graph_detection = _load_graph(detection_model_path, self.config)
         self.graph_classification = _load_graph(classification_model_path, self.config)
 
         # Create TF sessions
@@ -198,7 +170,7 @@ class TLClassifier(object):
                 feed_dict={self.image_tensor: image_expanded})
 
             # Extract box and append to list
-            return _extractBox(boxes, scores, classes, 0.5, im_width, im_height, self.tl_class)
+            return _extractBox(boxes, scores, classes, 0.1, im_width, im_height)
 
     # Classification
     def classification(self, image):
